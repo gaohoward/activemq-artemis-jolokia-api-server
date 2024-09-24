@@ -51,6 +51,154 @@ export const getBrokers = (_: express.Request, res: express.Response): void => {
   }
 };
 
+export const getClusterConnections = (
+  _: express.Request,
+  res: express.Response,
+): void => {
+  try {
+    const jolokia = res.locals.jolokia;
+
+    const comps = jolokia.getComponents(ArtemisJolokia.CLUSTER_CONNECTION);
+
+    comps
+      .then((result: any[]) => {
+        res.json(
+          result.map((entry: string) => {
+            const props = parseProps(entry);
+            const clusterConnection = {
+              name: props.get('name'),
+              broker: {
+                name: props.get(BROKER),
+              },
+            };
+            return clusterConnection;
+          }),
+        );
+      })
+      .catch((error: any) => {
+        console.log(error);
+      });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'server error: ' + JSON.stringify(err),
+    });
+  }
+};
+
+export const readClusterConnectionAttributes = (
+  req: express.Request,
+  res: express.Response,
+): void => {
+  try {
+    const jolokia = res.locals.jolokia;
+    const clusterConnectionName = req.query.name as string;
+    const clusterConnectionAttrNames = req.query.attrs as string[];
+
+    const attributes = jolokia.readClusterConnectionAttributes(
+      clusterConnectionName,
+      clusterConnectionAttrNames,
+    );
+    attributes
+      .then((result: JolokiaReadResponse[]) => {
+        res.json(result);
+      })
+      .catch((error: any) => {
+        console.log(error);
+        res.status(500).json({ status: 'error', message: 'server error' });
+      });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'server error: ' + JSON.stringify(err),
+    });
+  }
+};
+
+export const getClusterConnectionDetails = (
+  req: express.Request,
+  res: express.Response,
+): void => {
+  try {
+    const jolokia = res.locals.jolokia;
+
+    const clusterConnectionName = req.query.name;
+
+    const param = new Map<string, string>();
+    param.set('CLUSTER_CONNECTION_NAME', <string>clusterConnectionName);
+
+    const compDetails = jolokia.getClusterConnectionDetails(param);
+
+    compDetails
+      .then((result: JolokiaObjectDetailsType) => {
+        Object.entries(result.op).forEach(([key, value]) => {
+          if (!Array.isArray(value)) {
+            result.op[key] = [value];
+          }
+        });
+        res.json(result);
+      })
+      .catch((error: any) => {
+        console.log(error);
+        res.status(500).json({ status: 'error', message: 'server error' });
+      });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'server error: ' + JSON.stringify(err),
+    });
+  }
+};
+
+export const execClusterConnectionOperation = (
+  req: express.Request,
+  res: express.Response,
+): void => {
+  try {
+    const jolokia = res.locals.jolokia;
+
+    const operationRef = req.body as OperationRef;
+    const strArgs: string[] = [];
+    let strSignature = operationRef.signature.name + '(';
+    operationRef.signature.args.forEach((arg, item, array) => {
+      strSignature = strSignature + arg.type;
+      if (item < array.length - 1) {
+        strSignature = strSignature + ',';
+      }
+      strArgs.push(arg.value);
+    });
+    strSignature = strSignature + ')';
+
+    const clusterConnectionName = req.query.name;
+
+    const param = new Map<string, string>();
+    param.set('CLUSTER_CONNECTION_NAME', <string>clusterConnectionName);
+
+    const resp = jolokia.execClusterConnectionOperation(
+      param,
+      strSignature,
+      strArgs,
+    );
+    resp
+      .then((result: JolokiaExecResponse) => {
+        res.json(result);
+      })
+      .catch((error: any) => {
+        console.log(error);
+        res.status(500).json({ status: 'error', message: 'server error' });
+      });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'server error: ' + JSON.stringify(err),
+    });
+  }
+};
+
 export const getAcceptors = (
   _: express.Request,
   res: express.Response,

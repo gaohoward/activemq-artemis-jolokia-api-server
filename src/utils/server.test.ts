@@ -855,4 +855,203 @@ describe('test api server apis', () => {
     const value = await resp.json();
     expect(JSON.stringify(value)).toEqual(JSON.stringify(result));
   });
+
+  it('test get cluster connections', async () => {
+    const expectedApiResult = [
+      {
+        name: 'my-cluster',
+        broker: {
+          name: 'amq-broker',
+        },
+      },
+    ];
+
+    const jolokiaResult = [
+      'org.apache.activemq.artemis:broker="amq-broker",component=cluster-connections,name="my-cluster"',
+    ];
+
+    const jolokiaResp = {
+      request: {},
+      value: jolokiaResult,
+      timestamp: 1714703745,
+      status: 200,
+    };
+
+    mockJolokia
+      .get(
+        apiUrlPrefix +
+          '/search/org.apache.activemq.artemis:broker=%22amq-broker%22,component=cluster-connections,name=*',
+      )
+      .reply(200, JSON.stringify(jolokiaResp));
+
+    const resp = await doGet('/clusterConnections', authToken);
+    expect(resp.ok).toBeTruthy();
+
+    const value = await resp.json();
+    expect(value.length).toEqual(expectedApiResult.length);
+    for (let i = 0; i < value.length; i++) {
+      expect(value[i]).toEqual(expectedApiResult[i]);
+    }
+  });
+
+  it('test clusterConnectionDetails', async () => {
+    const apiResult = {
+      op: {
+        stop: [
+          {
+            args: [],
+            ret: 'void',
+            desc: 'stop this component',
+          },
+        ],
+      },
+      attr: {
+        Address: {
+          rw: false,
+          type: 'java.lang.String',
+          desc: 'address used by this cluster connection',
+        },
+      },
+      class:
+        'org.apache.activemq.artemis.core.management.impl.ClusterConnectionControlImpl',
+      desc: 'Information on the management interface of the MBean',
+    };
+
+    const jolokiaResult = {
+      op: {
+        stop: {
+          args: [],
+          ret: 'void',
+          desc: 'stop this component',
+        },
+      },
+      attr: {
+        Address: {
+          rw: false,
+          type: 'java.lang.String',
+          desc: 'address used by this cluster connection',
+        },
+      },
+      class:
+        'org.apache.activemq.artemis.core.management.impl.ClusterConnectionControlImpl',
+      desc: 'Information on the management interface of the MBean',
+    };
+    const jolokiaResp = {
+      request: {},
+      value: jolokiaResult,
+      timestamp: 1714703745,
+      status: 200,
+    };
+    mockJolokia
+      .get(
+        apiUrlPrefix +
+          '/list/org.apache.activemq.artemis:name=%22my-cluster%22,broker=%22amq-broker%22/component=cluster-connections',
+      )
+      .reply(200, JSON.stringify(jolokiaResp));
+
+    const resp = await doGet(
+      '/clusterConnectionDetails?name=my-cluster',
+      authToken,
+    );
+    expect(resp.ok).toBeTruthy();
+
+    const value = await resp.json();
+    expect(JSON.stringify(value)).toEqual(JSON.stringify(apiResult));
+  });
+
+  it('test readClusterConnectionAttributes', async () => {
+    const jolokiaResp = [
+      {
+        request: {
+          mbean:
+            'org.apache.activemq.artemis:broker="amq-broker",component=cluster-connections,name="my-cluster"',
+          attribute: 'MessageLoadBalancingType',
+          type: 'read',
+        },
+        value: 'ON_DEMAND',
+        timestamp: 1716368499,
+        status: 200,
+      },
+    ];
+
+    mockJolokia
+      .post(apiUrlPrefix + '/', (body) => {
+        if (
+          body.length === 1 &&
+          body[0].type === 'read' &&
+          body[0].mbean ===
+            'org.apache.activemq.artemis:broker="amq-broker",component=cluster-connections,name="my-cluster"' &&
+          body[0].attribute === 'MessageLoadBalancingType'
+        ) {
+          return true;
+        }
+        return false;
+      })
+      .reply(200, JSON.stringify(jolokiaResp));
+
+    const resp = await doGet(
+      '/readClusterConnectionAttributes?name=my-cluster&attrs=MessageLoadBalancingType',
+      authToken,
+    );
+    expect(resp.ok).toBeTruthy();
+
+    const value = await resp.json();
+    expect(JSON.stringify(value)).toEqual(JSON.stringify(jolokiaResp));
+  });
+
+  it('test execClusterConnectionOperation', async () => {
+    const jolokiaResp = [
+      {
+        request: {
+          mbean:
+            'org.apache.activemq.artemis:broker="amq-broker",component=cluster-connections,name="my-cluster"',
+          arguments: ['d71746e8-769b-11ef-8fc9-201e881aa455'],
+          type: 'exec',
+          operation: 'getBridgeMetrics(java.lang.String)',
+        },
+        value: {
+          messagesAcknowledged: 0,
+          messagesPendingAcknowledgement: 0,
+        },
+        timestamp: 1716385483,
+        status: 200,
+      },
+    ];
+
+    mockJolokia
+      .post(apiUrlPrefix + '/', (body) => {
+        if (
+          body.length === 1 &&
+          body[0].type === 'exec' &&
+          body[0].mbean ===
+            'org.apache.activemq.artemis:broker="amq-broker",component=cluster-connections,name="my-cluster"' &&
+          body[0].operation === 'getBridgeMetrics(java.lang.String)' &&
+          body[0].arguments[0] === 'd71746e8-769b-11ef-8fc9-201e881aa455'
+        ) {
+          return true;
+        }
+        return false;
+      })
+      .reply(200, JSON.stringify(jolokiaResp));
+
+    const resp = await doPost(
+      '/execClusterConnectionOperation?name=my-cluster',
+      JSON.stringify({
+        signature: {
+          name: 'getBridgeMetrics',
+          args: [
+            {
+              type: 'java.lang.String',
+              value: 'd71746e8-769b-11ef-8fc9-201e881aa455',
+            },
+          ],
+        },
+      }),
+      authToken,
+    );
+    expect(resp.ok).toBeTruthy();
+
+    const value = await resp.json();
+    expect(JSON.stringify(value)).toEqual(JSON.stringify(jolokiaResp));
+  });
 });
