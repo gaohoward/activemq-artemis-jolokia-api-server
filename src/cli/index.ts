@@ -5,13 +5,20 @@ import figlet from 'figlet';
 import readline from 'readline';
 import { stdin, stdout } from 'process';
 import dotenv from 'dotenv';
+
 import {
+  checkApiServer,
   CommandContext,
   InteractiveCommandContext,
+  JolokiaClient,
   printError,
 } from './context';
 
 dotenv.config();
+
+if (process.env['NODE_TLS_REJECT_UNAUTHORIZED'] !== '0') {
+  process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
+}
 
 const program = new Command();
 program
@@ -32,6 +39,22 @@ program
   .parse(process.argv);
 
 const apiServerUrl = program.opts().url;
+
+const apiClient = new JolokiaClient({
+  baseUrl: apiServerUrl + '/api/v1/',
+});
+
+checkApiServer(apiClient)
+  .then((result) => {
+    if (!result) {
+      printError('The api server is not available', apiServerUrl);
+      process.exit(1);
+    }
+  })
+  .catch((e) => {
+    printError('Error checking api server: ' + apiServerUrl, e);
+    process.exit(1);
+  });
 
 if (program.opts().interactive) {
   const endpointMap = new Map<string, CommandContext>();
@@ -71,16 +94,15 @@ if (program.opts().interactive) {
     null,
   );
 
-  Promise.all([
-    commandContext
-      .login()
-      .then(async () => {
-        const result = await commandContext.processCommand(program.args);
-        return result;
-      })
-      .catch((e) => {
-        printError('failed login', e);
-        process.exit(1);
-      }),
-  ]);
+  commandContext
+    .login()
+    .then(async () => {
+      const result = await commandContext.processCommand(program.args);
+      return result;
+    })
+    .catch((e) => {
+      printError('failed login', e);
+      program.help();
+      process.exit(1);
+    });
 }

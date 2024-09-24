@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { ApiClient } from './api-client';
 
-class JolokiaClient extends ApiClient {
+export class JolokiaClient extends ApiClient {
   PrepareFetchUrl(path: string) {
     return new URL(`${this.Config.baseUrl}/${path}`.replace(/\/{2,}/g, '/'));
   }
@@ -17,17 +17,51 @@ export interface JolokiaEndpoint {
   accessToken: string;
 }
 
+const replaceErrors = (key: any, value: { [x: string]: any }) => {
+  if (value instanceof Error) {
+    const error = {};
+
+    Object.getOwnPropertyNames(value).forEach(function (propName) {
+      error[propName] = value[propName];
+    });
+
+    return error;
+  }
+
+  return value;
+};
+
 export const printResult = (result: object) => {
   console.log(JSON.stringify(result, null, 2));
 };
 
 export const printError = (message: string, detail?: object | string) => {
   console.error(
-    JSON.stringify({
-      message: 'Error: ' + message,
-      detail: detail ? detail : '',
-    }),
+    JSON.stringify(
+      {
+        message: 'Error: ' + message,
+        details: detail ? detail : '',
+      },
+      replaceErrors,
+      2,
+    ),
   );
+};
+
+export const checkApiServer = async (
+  apiClient: JolokiaClient,
+): Promise<boolean> => {
+  return apiClient.development
+    .apiInfo()
+    .then((value) => {
+      if (value.status === 'successful') {
+        return true;
+      }
+      return false;
+    })
+    .catch(() => {
+      return false;
+    });
 };
 
 export class CommandContext {
@@ -89,26 +123,30 @@ export class CommandContext {
     return 1;
   }
 
-  async processCommand(cmds: string[]): Promise<number> {
+  async processCommand(args: string[]): Promise<number> {
     let retValue = 0;
-    cmds.forEach(async (command) => {
-      const args = command.split(' ');
-      switch (args[0]) {
-        case 'get': {
-          const getCmd = this.newGetCmd();
-          try {
-            await getCmd.parseAsync(args, { from: 'electron' });
-          } catch (e) {
-            printError('failed to execut get command', e);
-            retValue = 1;
-          }
-          break;
+    let resolvedArgs = args;
+    if (args.length === 1) {
+      // the command is quoted
+      resolvedArgs = args[0].trim().split(' ');
+    }
+
+    switch (resolvedArgs[0]) {
+      case 'get': {
+        const getCmd = this.newGetCmd();
+        try {
+          await getCmd.parseAsync(resolvedArgs, { from: 'electron' });
+        } catch (e) {
+          printError('failed to execut get command', e);
+          retValue = 1;
         }
-        default:
-          printError('unknown command', args[0]);
-          break;
+        break;
       }
-    });
+      default:
+        printError('unknown command', args);
+        retValue = 1;
+        break;
+    }
     return retValue;
   }
 
@@ -600,7 +638,7 @@ export class InteractiveCommandContext extends CommandContext {
       case 'switch':
         return this.switchJolokiaEndpoint(args);
       default: {
-        let context;
+        let context: CommandContext;
         try {
           context = this.getContextForCmd(args[1]);
         } catch (ex) {
