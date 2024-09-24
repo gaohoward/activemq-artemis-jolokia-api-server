@@ -81,25 +81,29 @@ If necessary update the code that is using the hooks to comply with your changes
 
 ## Path Table
 
-| Method | Path                                                  | Description                           |
-| ------ | ----------------------------------------------------- | ------------------------------------- |
-| POST   | [/jolokia/login](#postjolokialogin)                   | The login api                         |
-| GET    | [/brokers](#getbrokers)                               | retrieve the broker mbean             |
-| GET    | [/brokerDetails](#getbrokerdetails)                   | broker details                        |
-| GET    | [/readBrokerAttributes](#getreadbrokerattributes)     | read broker attributes                |
-| GET    | [/readAddressAttributes](#getreadaddressattributes)   | read address attributes               |
-| GET    | [/readQueueAttributes](#getreadqueueattributes)       | read queue attributes                 |
-| GET    | [/readAcceptorAttributes](#getreadacceptorattributes) | read acceptor attributes              |
-| GET    | [/checkCredentials](#getcheckcredentials)             | Check the validity of the credentials |
-| POST   | [/execBrokerOperation](#postexecbrokeroperation)      | execute a broker operation            |
-| GET    | [/brokerComponents](#getbrokercomponents)             | list all mbeans                       |
-| GET    | [/addresses](#getaddresses)                           | retrieve all addresses on broker      |
-| GET    | [/queues](#getqueues)                                 | list queues                           |
-| GET    | [/queueDetails](#getqueuedetails)                     | retrieve queue details                |
-| GET    | [/addressDetails](#getaddressdetails)                 | retrieve address details              |
-| GET    | [/acceptors](#getacceptors)                           | list acceptors                        |
-| GET    | [/acceptorDetails](#getacceptordetails)               | retrieve acceptor details             |
-| GET    | [/api-info](#getapi-info)                             | the api info                          |
+| Method | Path                                                                    | Description                            |
+| ------ | ----------------------------------------------------------------------- | -------------------------------------- |
+| POST   | [/jolokia/login](#postjolokialogin)                                     | The login api                          |
+| GET    | [/brokers](#getbrokers)                                                 | retrieve the broker mbean              |
+| GET    | [/brokerDetails](#getbrokerdetails)                                     | broker details                         |
+| GET    | [/readBrokerAttributes](#getreadbrokerattributes)                       | read broker attributes                 |
+| GET    | [/readAddressAttributes](#getreadaddressattributes)                     | read address attributes                |
+| GET    | [/readQueueAttributes](#getreadqueueattributes)                         | read queue attributes                  |
+| GET    | [/readAcceptorAttributes](#getreadacceptorattributes)                   | read acceptor attributes               |
+| GET    | [/readClusterConnectionAttributes](#getreadclusterconnectionattributes) | read cluster connection attributes     |
+| POST   | [/execClusterConnectionOperation](#postexecclusterconnectionoperation)  | execute a cluster connection operation |
+| GET    | [/checkCredentials](#getcheckcredentials)                               | Check the validity of the credentials  |
+| POST   | [/execBrokerOperation](#postexecbrokeroperation)                        | execute a broker operation             |
+| GET    | [/brokerComponents](#getbrokercomponents)                               | list all mbeans                        |
+| GET    | [/addresses](#getaddresses)                                             | retrieve all addresses on broker       |
+| GET    | [/queues](#getqueues)                                                   | list queues                            |
+| GET    | [/queueDetails](#getqueuedetails)                                       | retrieve queue details                 |
+| GET    | [/addressDetails](#getaddressdetails)                                   | retrieve address details               |
+| GET    | [/acceptors](#getacceptors)                                             | list acceptors                         |
+| GET    | [/acceptorDetails](#getacceptordetails)                                 | retrieve acceptor details              |
+| GET    | [/clusterConnections](#getclusterconnections)                           | list cluster connections               |
+| GET    | [/clusterConnectionDetails](#getclusterconnectiondetails)               | retrieve cluster connection details    |
+| GET    | [/api-info](#getapi-info)                                               | the api info                           |
 
 ## Reference Table
 
@@ -113,6 +117,7 @@ If necessary update the code that is using the hooks to comply with your changes
 | LoginResponse      | [#/components/schemas/LoginResponse](#componentsschemasloginresponse)           |             |
 | Address            | [#/components/schemas/Address](#componentsschemasaddress)                       |             |
 | Acceptor           | [#/components/schemas/Acceptor](#componentsschemasacceptor)                     |             |
+| ClusterConnection  | [#/components/schemas/ClusterConnection](#componentsschemasclusterconnection)   |             |
 | Queue              | [#/components/schemas/Queue](#componentsschemasqueue)                           |             |
 | Broker             | [#/components/schemas/Broker](#componentsschemasbroker)                         |             |
 | FailureResponse    | [#/components/schemas/FailureResponse](#componentsschemasfailureresponse)       |             |
@@ -572,6 +577,164 @@ jolokia-session-id: string
     mbean: string
     attribute?: string
     type: string
+  }
+  error_type?: string
+  error?: string
+  timestamp?: number
+  status: number
+}[]
+```
+
+- 401 Invalid credentials
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+- 500 Internal server error
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+---
+
+### [GET]/readClusterConnectionAttributes
+
+- Summary  
+  read cluster connection attributes
+
+- Description  
+  **Read values of cluster connection attributes**  
+   The return value is a json array that contains  
+   values of requested attributes of the cluster connection's mbean.
+  **Note**: to read multiple attributes, set it to **attrs** parameter  
+   separated by commas, e.g. `NodeID, Topology`.
+
+#### Parameters(Query)
+
+```ts
+name: string;
+```
+
+```ts
+attrs?: string[]
+```
+
+#### Headers
+
+```ts
+jolokia-session-id: string
+```
+
+#### Responses
+
+- 200 Success
+
+`application/json`
+
+```ts
+{
+  request: {
+    mbean: string
+    attribute?: string
+    type: string
+  }
+  error_type?: string
+  error?: string
+  timestamp?: number
+  status: number
+}[]
+```
+
+- 401 Invalid credentials
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+- 500 Internal server error
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+---
+
+### [POST]/execClusterConnectionOperation
+
+- Summary  
+  execute a cluster connection operation
+
+- Description  
+  **Invoke an operation of the cluster connection mbean**
+  It receives a POST request where the body  
+   should have the operation signature and its args.  
+   The return value is a one element json array that contains  
+   return values of invoked operation along with the request info.
+
+#### Parameters(Query)
+
+```ts
+name: string;
+```
+
+#### Headers
+
+```ts
+jolokia-session-id: string
+```
+
+#### RequestBody
+
+- application/json
+
+```ts
+{
+  // The method signature
+  signature: {
+    name: string
+    args: {
+      type: enum[[Ljava.lang.Object;, [Ljava.lang.String;, [Ljava.util.Map;, [Ljavax.management.openmbean.CompositeData;, Object, boolean, double, int, java.lang.Boolean, java.lang.Integer, java.lang.Long, java.lang.Object, java.lang.String, java.util.Map, long, void]
+      value: string
+    }[]
+  }
+}
+```
+
+#### Responses
+
+- 200 Success
+
+`application/json`
+
+```ts
+{
+  request: {
+    mbean: string
+    arguments?: string[]
+    type: string
+    operation: string
   }
   error_type?: string
   error?: string
@@ -1163,6 +1326,126 @@ jolokia-session-id: string
 
 ---
 
+### [GET]/clusterConnections
+
+- Summary  
+  list cluster connections
+
+- Description  
+  **Get all cluster connections in a broker**
+  It retrieves and returns a list of all cluster connection mbeans
+
+#### Headers
+
+```ts
+jolokia-session-id: string
+```
+
+#### Responses
+
+- 200 Success
+
+`application/json`
+
+```ts
+{
+  name: string;
+  broker: {
+    name: string;
+  }
+}
+[];
+```
+
+- 401 Invalid credentials
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+- 500 Internal server error
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+---
+
+### [GET]/clusterConnectionDetails
+
+- Summary  
+  retrieve cluster connection details
+
+- Description  
+  **Get details of a connection cluster**  
+   The return value is a json object that contains  
+   description of all the operations and attributes of a `cluster connection` mbean.
+  It is defined in [ClusterConnectionControl.java](https://github.com/apache/activemq-artemis/blob/2.33.0/artemis-core-client/src/main/java/org/apache/activemq/artemis/api/core/management/ClusterConnectionControl.java)
+
+#### Parameters(Query)
+
+```ts
+// the cluster connection name
+name: string;
+```
+
+#### Headers
+
+```ts
+jolokia-session-id: string
+```
+
+#### Responses
+
+- 200 Success
+
+`application/json`
+
+```ts
+{
+  op: {
+  }
+  attr: {
+  }
+  class: string
+  desc: string
+}
+```
+
+- 401 Invalid credentials
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+- 500 Internal server error
+
+`application/json`
+
+```ts
+{
+  status: enum[failed, error]
+  message: string
+}
+```
+
+---
+
 ### [GET]/api-info
 
 - Summary  
@@ -1293,6 +1576,17 @@ jolokia-session-id: string
 ```
 
 ### #/components/schemas/Acceptor
+
+```ts
+{
+  name: string;
+  broker: {
+    name: string;
+  }
+}
+```
+
+### #/components/schemas/ClusterConnection
 
 ```ts
 {

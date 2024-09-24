@@ -155,6 +155,7 @@ export const VerifyLogin = async (
   res: express.Response,
   next: any,
 ) => {
+  console.log('verify login for request:', req.path);
   try {
     if (ignoreAuth(req.path)) {
       console.log('ignore path', req.path);
@@ -166,6 +167,7 @@ export const VerifyLogin = async (
         console.log('no auth');
         res.sendStatus(401);
       } else {
+        console.log('verifying header', authHeader);
         jwt.verify(
           authHeader,
           getSecretToken(),
