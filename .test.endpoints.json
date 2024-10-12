@@ -1,0 +1,57 @@
+{
+  "endpoints": [
+    {
+      "name": "broker1",
+      "url": "http://127.0.0.1:8161",
+      "auth": [
+        {
+          "scheme": "basic",
+          "data": {
+            "username": "guest",
+            "password": "guest"
+          }
+        }
+      ]
+    },
+    {
+      "name": "broker2",
+      "url": "http://127.0.0.2:8161",
+      "auth": [
+        {
+          "scheme": "basic",
+          "data": {
+            "username": "guest",
+            "password": "guest"
+          }
+        }
+      ]
+    },
+    {
+      "name": "broker3",
+      "url": "http://127.0.0.3:8161",
+      "auth": [
+        {
+          "scheme": "basic",
+          "data": {
+            "username": "guest",
+            "password": "guest"
+          }
+        }
+      ]
+    },
+    {
+      "name": "broker4",
+      "url": "https://artemis-broker-jolokia-0-svc-ing-default.artemiscloud.io:443",
+      "jolokiaPrefix": "/jolokia/",
+      "auth": [
+        {
+          "scheme": "cert",
+          "data": {
+            "certpath": "test-api-server.crt",
+            "keypath": "test-api-server.key"
+          }
+        }
+      ]
+    }
+  ]
+}

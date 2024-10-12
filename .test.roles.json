@@ -1,0 +1,16 @@
+{
+  "roles": [
+    {
+      "name": "role1",
+      "uids": ["user1"]
+    },
+    {
+      "name": "role2",
+      "uids": ["user1", "user2"]
+    },
+    {
+      "name": "manager",
+      "uids": ["root"]
+    }
+  ]
+}
