@@ -1,0 +1,28 @@
+{
+  "endpoints": [
+    {
+      "name": "broker1",
+      "url": "http://127.0.0.1:8161",
+      "username": "guest",
+      "password": "password"
+    },
+    {
+      "name": "broker2",
+      "url": "http://127.0.0.2:8161",
+      "username": "guest",
+      "password": "password"
+    },
+    {
+      "name": "broker3",
+      "url": "http://127.0.0.3:8161",
+      "username": "guest",
+      "password": "password"
+    },
+    {
+      "name": "broker4",
+      "url": "http://127.0.0.4:8161",
+      "username": "guest",
+      "password": "password"
+    }
+  ]
+}

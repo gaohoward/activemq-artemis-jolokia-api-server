@@ -3,20 +3,23 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { logger } from './utils/logger';
 
 dotenv.config();
 
-console.log(
+logger.info(
   `Starting plugin ${process.env.PLUGIN_VERSION}`,
   process.env.PLUGIN_NAME,
 );
 
-createServer()
+const isReqLogEnabled = process.env.ENABLE_REQUEST_LOG || 'false';
+
+createServer(isReqLogEnabled === 'true')
   .then((server) => {
     let options = {};
 
     if (process.env.NODE_ENV === 'production') {
-      console.log(
+      logger.info(
         'setting up tls in production mode',
         'cert',
         process.env.SERVER_CERT,
@@ -34,7 +37,7 @@ createServer()
         throw new Error('Missing cert/key files');
       }
     } else {
-      console.log('setting up tls using dev certs');
+      logger.info('setting up tls using dev certs');
       options = {
         key: fs.readFileSync(path.join(__dirname, 'config/domain.key')),
         cert: fs.readFileSync(path.join(__dirname, 'config/domain.crt')),
@@ -42,9 +45,13 @@ createServer()
     }
     const secureServer = https.createServer(options, server);
     secureServer.listen(9443, () => {
-      console.info('Listening on https://0.0.0.0:9443');
+      logger.info('Listening on https://0.0.0.0:9443');
+      const securityEnabled =
+        process.env.API_SERVER_SECURITY_ENABLED !== 'false';
+      logger.info('security is ' + (securityEnabled ? 'enabled' : 'disabled.'));
     });
   })
   .catch((err) => {
-    console.error(`Error: ${err}`);
+    logger.error(`Error: ${err}`);
+    process.exit(1);
   });
