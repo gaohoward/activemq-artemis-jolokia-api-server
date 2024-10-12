@@ -121,3 +121,13 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# vs code config
+.vscode
+
+# security files
+.users.json
+.roles.json
+.endpoints.json
+.access.json
+

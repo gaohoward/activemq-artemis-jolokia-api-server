@@ -1,4 +1,11 @@
-import base64 from 'base-64';
+import { logger } from '../../utils/logger';
+import {
+  AuthenticationData,
+  AuthHandler,
+  AuthOptions,
+  CreateAuthHandler,
+  Endpoint,
+} from '../../utils/security_util';
 import fetch from 'node-fetch';
 
 // search the broker
@@ -40,97 +47,128 @@ const queueComponentPattern =
   'org.apache.activemq.artemis:address="ADDRESS_NAME",broker="BROKER_NAME",component=addresses,queue="QUEUE_NAME",routing-type="ROUTING_TYPE",subcomponent=queues';
 const clusterConnectionComponentPattern =
   'org.apache.activemq.artemis:broker="BROKER_NAME",component=cluster-connections,name="CLUSTER_CONNECTION_NAME"';
+
+export const BROKER = 'broker';
+export const BROKER_DETAILS = 'broker-details';
+export const BROKER_COMPONENTS = 'broker-components';
+export const ADDRESS = 'address';
+export const QUEUE = 'queue';
+export const ACCEPTOR = 'acceptor';
+export const QUEUE_DETAILS = 'queue-details';
+export const ADDRESS_DETAILS = 'address-details';
+export const ACCEPTOR_DETAILS = 'acceptor-details';
+export const CLUSTER_CONNECTION_DETAILS = 'cluster-connection-details';
+export const CLUSTER_CONNECTION = 'cluster-connection';
+
 export class ArtemisJolokia {
-  readonly username: string;
-  readonly password: string;
+  readonly name: string;
+  readonly serverUrl: string;
   readonly protocol: string;
   readonly port: string;
   readonly hostName: string;
   brokerName: string;
-  readonly baseUrl: string;
-
-  static readonly BROKER = 'broker';
-  static readonly BROKER_DETAILS = 'broker-details';
-  static readonly BROKER_COMPONENTS = 'broker-components';
-  static readonly ADDRESS = 'address';
-  static readonly QUEUE = 'queue';
-  static readonly ACCEPTOR = 'acceptor';
-  static readonly QUEUE_DETAILS = 'queue-details';
-  static readonly ADDRESS_DETAILS = 'address-details';
-  static readonly ACCEPTOR_DETAILS = 'acceptor-details';
-  static readonly CLUSTER_CONNECTION_DETAILS = 'cluster-connection-details';
-  static readonly CLUSTER_CONNECTION = 'cluster-connection';
+  baseUrl: string;
+  authHandlers: Array<AuthHandler>;
 
   componentMap = new Map<string, string>([
-    [ArtemisJolokia.BROKER, brokerSearchPattern],
-    [ArtemisJolokia.BROKER_COMPONENTS, brokerComponentsSearchPattern],
-    [ArtemisJolokia.ADDRESS, addressComponentsSearchPattern],
-    [ArtemisJolokia.QUEUE, queueComponentsSearchPattern],
-    [ArtemisJolokia.ACCEPTOR, acceptorComponentsSearchPattern],
-    [
-      ArtemisJolokia.CLUSTER_CONNECTION,
-      clusterConnectionComponentsSearchPattern,
-    ],
+    [BROKER, brokerSearchPattern],
+    [BROKER_COMPONENTS, brokerComponentsSearchPattern],
+    [ADDRESS, addressComponentsSearchPattern],
+    [QUEUE, queueComponentsSearchPattern],
+    [ACCEPTOR, acceptorComponentsSearchPattern],
+    [CLUSTER_CONNECTION, clusterConnectionComponentsSearchPattern],
   ]);
 
   componentDetailsMap = new Map<string, string>([
-    [ArtemisJolokia.BROKER_DETAILS, brokerDetailsListPattern],
-    [ArtemisJolokia.QUEUE_DETAILS, queueDetailsListPattern],
-    [ArtemisJolokia.ADDRESS_DETAILS, addressDetailsListPattern],
-    [ArtemisJolokia.ACCEPTOR_DETAILS, acceptorDetailsListPattern],
-    [
-      ArtemisJolokia.CLUSTER_CONNECTION_DETAILS,
-      clusterConnectionDetailsListPattern,
-    ],
+    [BROKER_DETAILS, brokerDetailsListPattern],
+    [QUEUE_DETAILS, queueDetailsListPattern],
+    [ADDRESS_DETAILS, addressDetailsListPattern],
+    [ACCEPTOR_DETAILS, acceptorDetailsListPattern],
+    [CLUSTER_CONNECTION_DETAILS, clusterConnectionDetailsListPattern],
   ]);
 
   componentNameMap = new Map<string, string>([
-    [ArtemisJolokia.BROKER, brokerComponentPattern],
-    [ArtemisJolokia.ADDRESS, addressComponentPattern],
-    [ArtemisJolokia.ACCEPTOR, acceptorComponentPattern],
-    [ArtemisJolokia.QUEUE, queueComponentPattern],
-    [ArtemisJolokia.CLUSTER_CONNECTION, clusterConnectionComponentPattern],
+    [BROKER, brokerComponentPattern],
+    [ADDRESS, addressComponentPattern],
+    [ACCEPTOR, acceptorComponentPattern],
+    [QUEUE, queueComponentPattern],
+    [CLUSTER_CONNECTION, clusterConnectionComponentPattern],
   ]);
 
-  constructor(
-    username: string,
-    password: string,
-    hostName: string,
-    protocol: string,
-    port: string,
-  ) {
-    this.username = username;
-    this.password = password;
-    this.protocol = protocol;
-    this.port = port;
-    this.hostName = hostName;
+  constructor(endpoint: Endpoint) {
+    const url = new URL(endpoint.url);
+
+    this.name = endpoint.name;
+    this.protocol = url.protocol.substring(0, url.protocol.length - 1);
+    this.port = url.port
+      ? url.port
+      : ArtemisJolokia.getDefaultPort(this.protocol);
+    this.hostName = url.hostname;
     this.brokerName = '';
+    this.serverUrl = this.protocol + '://' + this.hostName + ':' + this.port;
+
     this.baseUrl =
-      this.protocol +
-      '://' +
-      this.hostName +
-      ':' +
-      this.port +
-      '/console/jolokia/';
+      this.serverUrl + ArtemisJolokia.makeJolokiaPrefix(endpoint.jolokiaPrefix);
+
+    this.createAuthHandlers(endpoint.auth);
   }
 
-  getAuthHeaders = (): fetch.Headers => {
-    const headers = new fetch.Headers();
-    headers.set(
-      'Authorization',
-      'Basic ' + base64.encode(this.username + ':' + this.password),
-    );
-    //this may not needed as we set strict-check to false
-    headers.set('Origin', 'http://' + this.hostName);
-    return headers;
+  createAuthHandlers = (auth: AuthenticationData[]) => {
+    this.authHandlers = new Array<AuthHandler>();
+    auth.forEach((authData) => {
+      this.authHandlers.push(CreateAuthHandler(authData));
+    });
   };
+
+  static makeJolokiaPrefix = (input: string) => {
+    if (!input) {
+      return '/console/jolokia/';
+    }
+    if (!input.startsWith('/')) {
+      input = '/' + input;
+    }
+    if (!input.endsWith('/')) {
+      input = input + '/';
+    }
+    return input;
+  };
+
+  static getDefaultPort = (prot: string): string => {
+    if (prot === 'https') {
+      return '443';
+    }
+    return '80';
+  };
+
+  validateBroker = async (): Promise<boolean> => {
+    const result = await this.getComponents(BROKER);
+    if (result.length === 1 && result[0].length > 0) {
+      //org.apache.activemq.artemis:broker="amq-broker"
+      this.brokerName = result[0].split('=', 2)[1];
+
+      //remove quotes
+      this.brokerName = this.brokerName.replace(/"/g, '');
+      return true;
+    }
+    return false;
+  };
+
+  prepareRequest(reqUrl: string): AuthOptions {
+    const headers = new fetch.Headers();
+    headers.set('Origin', this.serverUrl);
+    const authOpts = {
+      headers: headers,
+    };
+    this.authHandlers.forEach((handler) => {
+      handler.handleRequest(reqUrl, authOpts);
+    });
+    return authOpts;
+  }
 
   getComponents = async (
     name: string,
     params?: Map<string, string>,
   ): Promise<Array<string>> => {
-    const headers = this.getAuthHeaders();
-
     let searchPattern = this.componentMap.get(name);
 
     if (typeof params !== 'undefined') {
@@ -143,11 +181,23 @@ export class ArtemisJolokia {
 
     const url = this.baseUrl + 'search/' + searchPattern;
 
+    const { headers, agent } = this.prepareRequest(url);
+
     const reply = await fetch(url, {
       method: 'GET',
       headers: headers,
+      agent: agent ?? false,
     })
-      .then((response) => response.text()) //check response.ok
+      .then((response) => {
+        logger.debug(
+          { response: response.ok, status: response.statusText },
+          'response from endpoint',
+        );
+        if (response.ok) {
+          return response.text();
+        }
+        throw response;
+      })
       .then((message) => {
         const resp: JolokiaResponseType = JSON.parse(message);
         return resp.value;
@@ -157,19 +207,18 @@ export class ArtemisJolokia {
   };
 
   getBrokerDetails = async (): Promise<JolokiaObjectDetailsType> => {
-    const headers = this.getAuthHeaders();
-
-    let searchPattern = this.componentDetailsMap.get(
-      ArtemisJolokia.BROKER_DETAILS,
-    );
+    let searchPattern = this.componentDetailsMap.get(BROKER_DETAILS);
 
     searchPattern = searchPattern?.replace('BROKER_NAME', this.brokerName);
 
     const url = this.baseUrl + 'list/' + searchPattern;
 
+    const { headers, agent } = this.prepareRequest(url);
+
     const reply = await fetch(url, {
       method: 'GET',
       headers: headers,
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -194,11 +243,7 @@ export class ArtemisJolokia {
   getAcceptorDetails = async (
     params?: Map<string, string>,
   ): Promise<JolokiaObjectDetailsType> => {
-    const headers = this.getAuthHeaders();
-
-    let searchPattern = this.componentDetailsMap.get(
-      ArtemisJolokia.ACCEPTOR_DETAILS,
-    );
+    let searchPattern = this.componentDetailsMap.get(ACCEPTOR_DETAILS);
 
     if (typeof params !== 'undefined') {
       for (const [key, value] of params) {
@@ -209,9 +254,12 @@ export class ArtemisJolokia {
 
     const url = this.baseUrl + 'list/' + searchPattern;
 
+    const { headers, agent } = this.prepareRequest(url);
+
     const reply = await fetch(url, {
       method: 'GET',
       headers: headers,
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -236,11 +284,7 @@ export class ArtemisJolokia {
   getAddressDetails = async (
     params?: Map<string, string>,
   ): Promise<JolokiaObjectDetailsType> => {
-    const headers = this.getAuthHeaders();
-
-    let searchPattern = this.componentDetailsMap.get(
-      ArtemisJolokia.ADDRESS_DETAILS,
-    );
+    let searchPattern = this.componentDetailsMap.get(ADDRESS_DETAILS);
 
     if (typeof params !== 'undefined') {
       for (const [key, value] of params) {
@@ -251,9 +295,12 @@ export class ArtemisJolokia {
 
     const url = this.baseUrl + 'list/' + searchPattern;
 
+    const { headers, agent } = this.prepareRequest(url);
+
     const reply = await fetch(url, {
       method: 'GET',
       headers: headers,
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -278,10 +325,8 @@ export class ArtemisJolokia {
   getClusterConnectionDetails = async (
     params?: Map<string, string>,
   ): Promise<JolokiaObjectDetailsType> => {
-    const headers = this.getAuthHeaders();
-
     let searchPattern = this.componentDetailsMap.get(
-      ArtemisJolokia.CLUSTER_CONNECTION_DETAILS,
+      CLUSTER_CONNECTION_DETAILS,
     );
 
     if (typeof params !== 'undefined') {
@@ -293,9 +338,12 @@ export class ArtemisJolokia {
 
     const url = this.baseUrl + 'list/' + searchPattern;
 
+    const { headers, agent } = this.prepareRequest(url);
+
     const reply = await fetch(url, {
       method: 'GET',
       headers: headers,
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -320,17 +368,18 @@ export class ArtemisJolokia {
   readBrokerAttributes = async (
     brokerAttrNames: string[],
   ): Promise<JolokiaReadResponse[]> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const reply = await fetch(this.baseUrl, {
       method: 'POST',
       headers: headers,
       body: this.getPostBodyForAttributes(
-        ArtemisJolokia.BROKER,
+        BROKER,
         new Map<string, string>(),
         brokerAttrNames,
       ),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -353,7 +402,7 @@ export class ArtemisJolokia {
     addressName: string,
     addressAttrNames: string[],
   ): Promise<JolokiaReadResponse[]> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const param = new Map<string, string>();
@@ -362,11 +411,8 @@ export class ArtemisJolokia {
     const reply = await fetch(this.baseUrl, {
       method: 'POST',
       headers: headers,
-      body: this.getPostBodyForAttributes(
-        ArtemisJolokia.ADDRESS,
-        param,
-        addressAttrNames,
-      ),
+      body: this.getPostBodyForAttributes(ADDRESS, param, addressAttrNames),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -389,7 +435,7 @@ export class ArtemisJolokia {
     clusterConnectionName: string,
     clusterConnectionAttrNames: string[],
   ): Promise<JolokiaReadResponse[]> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const param = new Map<string, string>();
@@ -399,10 +445,11 @@ export class ArtemisJolokia {
       method: 'POST',
       headers: headers,
       body: this.getPostBodyForAttributes(
-        ArtemisJolokia.CLUSTER_CONNECTION,
+        CLUSTER_CONNECTION,
         param,
         clusterConnectionAttrNames,
       ),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -426,18 +473,19 @@ export class ArtemisJolokia {
     signature: string,
     args: string[],
   ): Promise<JolokiaExecResponse> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const reply = await fetch(this.baseUrl, {
       method: 'POST',
       headers: headers,
       body: this.getPostBodyForOperation(
-        ArtemisJolokia.CLUSTER_CONNECTION,
+        CLUSTER_CONNECTION,
         param,
         signature,
         args,
       ),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -460,18 +508,19 @@ export class ArtemisJolokia {
     signature: string,
     args: string[],
   ): Promise<JolokiaExecResponse> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const reply = await fetch(this.baseUrl, {
       method: 'POST',
       headers: headers,
       body: this.getPostBodyForOperation(
-        ArtemisJolokia.BROKER,
+        BROKER,
         new Map<string, string>(),
         signature,
         args,
       ),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -493,11 +542,7 @@ export class ArtemisJolokia {
   getQueueDetails = async (
     params?: Map<string, string>,
   ): Promise<JolokiaObjectDetailsType> => {
-    const headers = this.getAuthHeaders();
-
-    let searchPattern = this.componentDetailsMap.get(
-      ArtemisJolokia.QUEUE_DETAILS,
-    );
+    let searchPattern = this.componentDetailsMap.get(QUEUE_DETAILS);
 
     if (typeof params !== 'undefined') {
       for (const [key, value] of params) {
@@ -508,9 +553,12 @@ export class ArtemisJolokia {
 
     const url = this.baseUrl + 'list/' + searchPattern;
 
+    const { headers, agent } = this.prepareRequest(url);
+
     const reply = await fetch(url, {
       method: 'GET',
       headers: headers,
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -538,7 +586,7 @@ export class ArtemisJolokia {
     addressName: string,
     queueAttrNames: string[],
   ): Promise<JolokiaReadResponse[]> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const param = new Map<string, string>();
@@ -549,11 +597,8 @@ export class ArtemisJolokia {
     const reply = await fetch(this.baseUrl, {
       method: 'POST',
       headers: headers,
-      body: this.getPostBodyForAttributes(
-        ArtemisJolokia.QUEUE,
-        param,
-        queueAttrNames,
-      ),
+      body: this.getPostBodyForAttributes(QUEUE, param, queueAttrNames),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -575,7 +620,7 @@ export class ArtemisJolokia {
     acceptorName: string,
     acceptorAttrNames: string[],
   ): Promise<JolokiaReadResponse[]> => {
-    const headers = this.getAuthHeaders();
+    const { headers, agent } = this.prepareRequest(this.baseUrl);
     headers.set('Content-Type', 'application/json');
 
     const param = new Map<string, string>();
@@ -584,11 +629,8 @@ export class ArtemisJolokia {
     const reply = await fetch(this.baseUrl, {
       method: 'POST',
       headers: headers,
-      body: this.getPostBodyForAttributes(
-        ArtemisJolokia.ACCEPTOR,
-        param,
-        acceptorAttrNames,
-      ),
+      body: this.getPostBodyForAttributes(ACCEPTOR, param, acceptorAttrNames),
+      agent: agent ?? false,
     })
       .then((response) => {
         if (response.ok) {
@@ -604,19 +646,6 @@ export class ArtemisJolokia {
         throw err;
       });
     return reply;
-  };
-
-  validateUser = async (): Promise<boolean> => {
-    const result = await this.getComponents(ArtemisJolokia.BROKER);
-    if (result.length === 1) {
-      //org.apache.activemq.artemis:broker="amq-broker"
-      this.brokerName = result[0].split('=', 2)[1];
-
-      //remove quotes
-      this.brokerName = this.brokerName.replace(/"/g, '');
-      return true;
-    }
-    return false;
   };
 
   getPostBodyForAttributes = (
@@ -674,6 +703,23 @@ export class ArtemisJolokia {
     return JSON.stringify(bodyItems);
   };
 }
+
+const validateEndpoint = (endpoint: Endpoint) => {
+  if (!endpoint.name) {
+    throw Error('No endpoint name');
+  }
+  if (!endpoint.auth) {
+    throw Error('No endpoint authentication data');
+  }
+  if (!endpoint.url) {
+    throw Error('No endpoint url');
+  }
+};
+
+export const CreateArtemisJolokia = (endpoint: Endpoint): ArtemisJolokia => {
+  validateEndpoint(endpoint);
+  return new ArtemisJolokia(endpoint);
+};
 
 interface JolokiaPostReadBodyItem {
   type: string;

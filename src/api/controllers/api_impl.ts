@@ -1,16 +1,20 @@
 import * as express from 'express';
 import {
-  ArtemisJolokia,
+  ACCEPTOR,
+  ADDRESS,
+  BROKER,
+  BROKER_COMPONENTS,
+  CLUSTER_CONNECTION,
   JolokiaExecResponse,
   JolokiaObjectDetailsType,
   JolokiaReadResponse,
+  QUEUE,
 } from '../apiutil/artemis_jolokia';
 import { API_SUMMARY } from '../../utils/server';
+import { GetEndpointManager } from './endpoint_manager';
+import { IsSecurityEnabled } from './security_manager';
 import { logger } from '../../utils/logger';
 
-const BROKER = 'broker';
-const ADDRESS = 'address';
-const QUEUE = 'queue';
 const ROUTING_TYPE = 'routing-type';
 
 const parseProps = (rawProps: string): Map<string, string> => {
@@ -23,11 +27,43 @@ const parseProps = (rawProps: string): Map<string, string> => {
   return map;
 };
 
+export const listEndpoints = (
+  _: express.Request,
+  res: express.Response,
+): void => {
+  try {
+    GetEndpointManager()
+      .listEndpoints()
+      .then((result) => {
+        res.json(
+          result.map((entry) => {
+            return {
+              name: entry.name,
+              url: entry.serverUrl,
+            };
+          }),
+        );
+      })
+      .catch((err: any) => {
+        res.status(500).json({
+          status: 'error',
+          message: 'server error ' + JSON.stringify(err),
+        });
+      });
+  } catch (err) {
+    logger.error(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'server error: ' + JSON.stringify(err),
+    });
+  }
+};
+
 export const getBrokers = (_: express.Request, res: express.Response): void => {
   try {
     const jolokia = res.locals.jolokia;
 
-    const comps = jolokia.getComponents(ArtemisJolokia.BROKER);
+    const comps = jolokia.getComponents(BROKER);
 
     comps
       .then((result: any[]) => {
@@ -40,11 +76,14 @@ export const getBrokers = (_: express.Request, res: express.Response): void => {
           }),
         );
       })
-      .catch((error: any) => {
-        logger.error(error);
+      .catch((err: any) => {
+        logger.debug(err, 'error getting BROKER comp');
+        res.status(500).json({
+          status: 'error',
+          message: 'server error ' + JSON.stringify(err),
+        });
       });
   } catch (err) {
-    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -59,7 +98,7 @@ export const getClusterConnections = (
   try {
     const jolokia = res.locals.jolokia;
 
-    const comps = jolokia.getComponents(ArtemisJolokia.CLUSTER_CONNECTION);
+    const comps = jolokia.getComponents(CLUSTER_CONNECTION);
 
     comps
       .then((result: any[]) => {
@@ -207,7 +246,7 @@ export const getAcceptors = (
   try {
     const jolokia = res.locals.jolokia;
 
-    const comps = jolokia.getComponents(ArtemisJolokia.ACCEPTOR);
+    const comps = jolokia.getComponents(ACCEPTOR);
 
     comps
       .then((result: any[]) => {
@@ -273,7 +312,7 @@ export const getBrokerComponents = (
   try {
     const jolokia = res.locals.jolokia;
 
-    const comps = jolokia.getComponents(ArtemisJolokia.BROKER_COMPONENTS);
+    const comps = jolokia.getComponents(BROKER_COMPONENTS);
 
     comps
       .then((result: any[]) => {
@@ -298,7 +337,7 @@ export const getAddresses = (
   try {
     const jolokia = res.locals.jolokia;
 
-    const comps = jolokia.getComponents(ArtemisJolokia.ADDRESS);
+    const comps = jolokia.getComponents(ADDRESS);
     comps
       .then((result: any[]) => {
         res.json(
@@ -368,7 +407,7 @@ export const getQueues = (
     const param = new Map<string, string>();
     const name = <string>addressName;
     param.set('ADDRESS_NAME', name);
-    const comps = jolokia.getComponents(ArtemisJolokia.QUEUE, param);
+    const comps = jolokia.getComponents(QUEUE, param);
 
     comps
       .then((result: any[]) => {
@@ -668,6 +707,9 @@ export const getQueueDetails = (
 
 export const apiInfo = (_: express.Request, res: express.Response): void => {
   res.json({
+    security: {
+      enabled: IsSecurityEnabled(),
+    },
     message: API_SUMMARY,
     status: 'successful',
   });
