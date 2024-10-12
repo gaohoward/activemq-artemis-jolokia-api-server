@@ -40,17 +40,19 @@ WORKDIR /usr/share/amq-spp
 RUN npm install connect \
 cors \
 express \
-express-openapi-validator \
-swagger-routes-express \
-typescript \
-validator \
-yaml \
 base-64 \
+js-yaml \
 jsonwebtoken \
 dotenv \
+swagger-routes-express \
+express-openapi-validator \
 express-rate-limit \
-node-fetch@2 \
-@peculiar/x509
+express-pino-logger \
+pino \
+bcrypt \
+fs-json-store \
+passport \
+passport-jwt
 
 RUN echo "node /usr/share/amq-spp/dist/app.js" > run.sh
 RUN chmod +x run.sh

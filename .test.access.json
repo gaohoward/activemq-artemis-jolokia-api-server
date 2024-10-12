@@ -1,0 +1,19 @@
+{
+  "endpoints": [
+    {
+      "name": "broker1",
+      "roles": ["role1", "manager"]
+    },
+    {
+      "name": "broker2",
+      "roles": ["role2", "manager"]
+    },
+    {
+      "name": "broker3",
+      "roles": ["manager"]
+    }
+  ],
+  "admin": {
+    "roles": ["manager"]
+  }
+}

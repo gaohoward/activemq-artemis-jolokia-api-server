@@ -41,6 +41,8 @@ const queueComponentPattern =
 const clusterConnectionComponentPattern =
   'org.apache.activemq.artemis:broker="BROKER_NAME",component=cluster-connections,name="CLUSTER_CONNECTION_NAME"';
 export class ArtemisJolokia {
+  readonly name: string;
+  readonly serverUrl: string;
   readonly username: string;
   readonly password: string;
   readonly protocol: string;
@@ -93,25 +95,23 @@ export class ArtemisJolokia {
   ]);
 
   constructor(
+    name: string,
     username: string,
     password: string,
     hostName: string,
     protocol: string,
     port: string,
   ) {
+    this.name = name;
     this.username = username;
     this.password = password;
     this.protocol = protocol;
     this.port = port;
     this.hostName = hostName;
     this.brokerName = '';
-    this.baseUrl =
-      this.protocol +
-      '://' +
-      this.hostName +
-      ':' +
-      this.port +
-      '/console/jolokia/';
+    this.serverUrl = this.protocol + '://' + this.hostName + ':' + this.port;
+
+    this.baseUrl = this.serverUrl + '/console/jolokia/';
   }
 
   getAuthHeaders = (): fetch.Headers => {
@@ -608,7 +608,7 @@ export class ArtemisJolokia {
 
   validateUser = async (): Promise<boolean> => {
     const result = await this.getComponents(ArtemisJolokia.BROKER);
-    if (result.length === 1) {
+    if (result.length === 1 && result[0].length > 0) {
       //org.apache.activemq.artemis:broker="amq-broker"
       this.brokerName = result[0].split('=', 2)[1];
 
@@ -616,7 +616,6 @@ export class ArtemisJolokia {
       this.brokerName = this.brokerName.replace(/"/g, '');
       return true;
     }
-    console.log('User is not valid', this.username);
     return false;
   };
 

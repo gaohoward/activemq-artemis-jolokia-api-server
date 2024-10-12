@@ -59,3 +59,56 @@ To undeploy, run
 ```sh
 ./undeploy.sh
 ```
+
+## Security Model of the API Server
+
+The API Server provides a security model that provides authentication and authorization of incoming clients.
+The security can be enabled/disabled (i.e. via `API_SERVER_SECURITY_ENABLED` env var)
+
+### Authentication
+
+The authentication provides api to support:
+
+1. Bearer token authentication default
+
+A clients logs in with its credentials and gets a bearer token (jwt token).
+
+The Authentication is configured via `API_SERVER_AUTH_METHOD` (currently bearer).
+
+#### The login api
+
+The login api is defined in openapi.yml
+
+```yaml
+/server/login
+```
+
+A client logs in to an api server by sending a POST request to the login path. The request body contains login information.
+The request body is a json object which must contain a 'authen-type' property.
+
+```yaml
+authen-type: 'basic' (currently supported)
+```
+
+Depending on the `authen-type` other properties may be provided. For `basic` type, the `username` and `password` may be provided.
+
+### Authorization
+
+The server uses RBAC (Role Based Access Control). The user/role mapping can be managed by the server locally or on a
+remote service (for example a ldap server). It maintains a ACL that defines which roles can access an broker jolokia endpoint.
+
+role-name -> list of permission items (endpoint-list permissions, etc)
+
+for example:
+
+role1 -> endpoint-list: endpoint1 (maybe with some constraints? but it can be restricted on the broker's edit/view constraints), endpoint2 ...
+... (more permission types may be added, for example, whether or not allow to configure/modify the endpoint list)
+
+The endpoint list can be configured as such:
+
+endpoint name (e.g. broker0, or endpoint1) -> connection info (e.g. http://localhost:8161, user, password)
+
+### Direct Proxy
+
+Direct Proxy means a client can pass a broker's endpoint info to the api-server in order to access it via the api-server.
+Some clients (like spp) run inside a browser that cannot directly call the broker's jolokia's API due to browser restrictions (cors, or http->https constraints, or cert issues if mTLS, that can be overcomed by api-server who run as a node js process), but they know all the access info of an jolokia broker.

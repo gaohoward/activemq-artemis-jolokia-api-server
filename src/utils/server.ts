@@ -3,29 +3,38 @@ import * as OpenApiValidator from 'express-openapi-validator';
 import { Express } from 'express-serve-static-core';
 import { Summary, connector, summarise } from 'swagger-routes-express';
 import { rateLimit } from 'express-rate-limit';
-//import YAML from 'yamljs';
 import * as YAML from 'js-yaml';
 import * as fs from 'fs';
 import path from 'path';
 import cors from 'cors';
-
 import * as api from '../api/controllers';
+
+import {
+  InitSecurity,
+  IsSecurityEnabled,
+} from '../api/controllers/security_manager';
+import { logger, logRequest } from './logger';
+import { InitEndpoints } from '../api/controllers/endpoint_manager';
 
 export let API_SUMMARY: Summary;
 
-const createServer = async (): Promise<Express> => {
+const createServer = async (enableLogRequest: boolean): Promise<Express> => {
   const yamlSpecFile = path.join(__dirname, '../config/openapi.yml');
-  console.log('parseing api.yaml', yamlSpecFile);
 
   const ymlData = fs.readFileSync(yamlSpecFile, 'utf-8');
   const apiDefinition = YAML.load(ymlData) as object;
-  console.log('LOADED apiDef', apiDefinition);
   API_SUMMARY = summarise(apiDefinition);
-  console.log('output summary', API_SUMMARY);
-  console.info(API_SUMMARY);
+
+  logger.debug(API_SUMMARY);
+
+  await InitSecurity();
+
+  await InitEndpoints();
 
   const server = express();
   // here we can intialize body/cookies parsers, connect logger, for example morgan
+
+  server.use(logRequest(enableLogRequest));
 
   const limiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -41,7 +50,8 @@ const createServer = async (): Promise<Express> => {
     apiSpec: yamlSpecFile,
     validateRequests: true,
     validateResponses: true,
-    ignorePaths: /jolokia\/login/,
+    validateSecurity: IsSecurityEnabled(),
+    ignorePaths: /jolokia|server\/login/,
   };
 
   server.use(express.json());
@@ -49,20 +59,14 @@ const createServer = async (): Promise<Express> => {
   server.use(express.urlencoded({ extended: false }));
   server.use(cors());
   server.use(OpenApiValidator.middleware(validatorOptions));
+
   server.use((req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
-      console.log(
-        'in redirect handler, x-forward-proto',
-        req.headers['x-forwarded-proto'],
-        'method',
-        req.method,
-      );
       if (
         req.headers['x-forwarded-proto'] === 'http' &&
         req.method !== 'OPTIONS'
       ) {
         const redirUrl = 'https://' + req.headers.host + req.url;
-        console.log('redirecting to', redirUrl);
         return res.redirect(redirUrl);
       } else {
         next();
@@ -71,11 +75,19 @@ const createServer = async (): Promise<Express> => {
       next();
     }
   });
+
+  server.use(api.PreOperation);
+
+  if (IsSecurityEnabled()) {
+    server.use(api.VerifyAuth);
+    server.use(api.CheckPermissions);
+  }
+
   server.use(api.VerifyLogin);
 
   const connect = connector(api, apiDefinition, {
     onCreateRoute: (method: string, descriptor: any[]) => {
-      console.log(
+      logger.info(
         `${method}: ${descriptor[0]} : ${(descriptor[1] as any).name}`,
       );
     },
