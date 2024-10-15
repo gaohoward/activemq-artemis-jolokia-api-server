@@ -95,6 +95,16 @@ export class ApiClient {
   }
 
   security = {
+    serverLogin: (body: { userName: string; password: string }) => {
+      return this.Fetch<ServerLoginResponse>('post', '/server/login', { body });
+    },
+
+    serverLogout: (body: EmptyBody) => {
+      return this.Fetch<ServerLogoutResponse>('post', '/server/logout', {
+        body,
+      });
+    },
+
     login: (body: {
       brokerName: string;
       userName: string;
@@ -147,6 +157,30 @@ export class ApiClient {
       );
     },
 
+    readClusterConnectionAttributes: (search: {
+      name?: string;
+      attrs?: string[];
+    }) => {
+      return this.Fetch<ComponentAttribute[]>(
+        'get',
+        '/readClusterConnectionAttributes',
+        { search },
+      );
+    },
+
+    execClusterConnectionOperation: (
+      body: OperationRef,
+      search: {
+        name?: string;
+      },
+    ) => {
+      return this.Fetch<ExecResult[]>(
+        'post',
+        '/execClusterConnectionOperation',
+        { search, body },
+      );
+    },
+
     checkCredentials: () => {
       return this.Fetch<DummyResponse>('get', '/checkCredentials', {});
     },
@@ -185,6 +219,16 @@ export class ApiClient {
 
     getAcceptorDetails: (search: { name?: string }) => {
       return this.Fetch<ComponentDetails>('get', '/acceptorDetails', {
+        search,
+      });
+    },
+
+    getClusterConnections: () => {
+      return this.Fetch<ClusterConnection[]>('get', '/clusterConnections', {});
+    },
+
+    getClusterConnectionDetails: (search: { name?: string }) => {
+      return this.Fetch<ComponentDetails>('get', '/clusterConnectionDetails', {
         search,
       });
     },
@@ -239,6 +283,11 @@ export type Broker = {
   name: string;
 };
 
+export type ClusterConnection = {
+  name: string;
+  broker: Broker;
+};
+
 export type ComponentAttribute = {
   request: {
     mbean: string;
@@ -263,6 +312,8 @@ export type DummyResponse = {
   message: 'ok';
   status: 'successful';
 };
+
+export type EmptyBody = object | null;
 
 export type ExecResult = {
   request: {
@@ -337,6 +388,17 @@ export type Queue = {
   'routing-type': string;
   address?: Address;
   broker: Broker;
+};
+
+export type ServerLoginResponse = {
+  message: string;
+  status: string;
+  bearerToken: string;
+};
+
+export type ServerLogoutResponse = {
+  message: string;
+  status: string;
 };
 
 export type Signature = {

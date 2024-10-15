@@ -94,7 +94,89 @@ tags:
   - name: development
     description: for development purposes
 
+security:
+  - bearerAuth: [] # use the same name as above
+
 paths:
+  /server/login:
+    post:
+      summary: Api to log in to the api server.
+      description: >
+        This api is used to login to the api server.
+      tags:
+        - security
+      operationId: serverLogin
+      security: [] # no security for login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userName:
+                  type: string
+                password:
+                  type: string
+              required:
+                - userName
+                - password
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerLoginResponse'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/FailureResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/FailureResponse'
+  /server/logout:
+    post:
+      summary: Api to log out
+      description: >
+        This api is used to logout the current session.
+      tags:
+        - security
+      operationId: serverLogout
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyBody'
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerLogoutResponse'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/FailureResponse'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/FailureResponse'
   /jolokia/login:
     post:
       summary: The login api
@@ -112,6 +194,7 @@ paths:
         named `jolokia-session-id`.
         The src will validate the token before processing a request is
         and rejects the request if the token is not valid.
+      security: [] # no security for login
       tags:
         - security
       operationId: login
@@ -183,7 +266,17 @@ paths:
           name: jolokia-session-id
           schema:
             type: string
-          required: true
+          required: false
+        - in: header
+          name: endpoint-name
+          schema:
+            type: string
+          required: false
+        - in: header
+          name: target-endpoint
+          schema:
+            type: string
+          required: false
       responses:
         200:
           description: Success
@@ -594,7 +687,6 @@ paths:
               schema:
                 type: object
                 $ref: '#/components/schemas/FailureResponse'
-
   /checkCredentials:
     get:
       summary: Check the validity of the credentials
@@ -1082,6 +1174,7 @@ paths:
       tags:
         - development
       operationId: apiInfo
+      security: [] #no security for api-info
       responses:
         200:
           description: Success
@@ -1195,6 +1288,30 @@ components:
           type: string
           enum: [successful]
         jolokia-session-id:
+          type: string
+          description: The jwt token
+    ServerLogoutResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        message:
+          type: string
+        status:
+          type: string
+    ServerLoginResponse:
+      type: object
+      required:
+        - status
+        - message
+        - bearerToken
+      properties:
+        message:
+          type: string
+        status:
+          type: string
+        bearerToken:
           type: string
           description: The jwt token
     LoginResponse:
@@ -1417,3 +1534,11 @@ components:
           type: number
         status:
           type: number
+    EmptyBody:
+      type: object
+      nullable: true
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

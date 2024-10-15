@@ -1,11 +1,5 @@
 import { Command } from 'commander';
-import { ApiClient } from './api-client';
-
-export class JolokiaClient extends ApiClient {
-  PrepareFetchUrl(path: string) {
-    return new URL(`${this.Config.baseUrl}/${path}`.replace(/\/{2,}/g, '/'));
-  }
-}
+import { ServerAccess } from './server-access';
 
 export interface JolokiaEndpoint {
   brokerName: string;
@@ -48,36 +42,16 @@ export const printError = (message: string, detail?: object | string) => {
   );
 };
 
-export const checkApiServer = async (
-  apiClient: JolokiaClient,
-): Promise<boolean> => {
-  return apiClient.development
-    .apiInfo()
-    .then((value) => {
-      if (value.status === 'successful') {
-        return true;
-      }
-      return false;
-    })
-    .catch(() => {
-      return false;
-    });
-};
-
 export class CommandContext {
-  apiClient: JolokiaClient;
+  apiClient: ServerAccess;
   currentEndpoint: JolokiaEndpoint;
-  apiServerUrl: string;
 
   constructor(
-    apiServerUrl: string,
+    serverAccess: ServerAccess,
     endpointUrl: string,
     endpoint: JolokiaEndpoint | null,
   ) {
-    this.apiClient = new JolokiaClient({
-      baseUrl: apiServerUrl,
-    });
-    this.apiServerUrl = apiServerUrl;
+    this.apiClient = serverAccess;
 
     if (endpointUrl !== '') {
       const url = new URL(endpointUrl);
@@ -103,6 +77,7 @@ export class CommandContext {
       : url.port;
   }
 
+  // this login is used to login a jolokia endpoint
   async login(): Promise<number> {
     if (
       this.currentEndpoint !== null &&
@@ -110,13 +85,10 @@ export class CommandContext {
     ) {
       return 0;
     }
-    const result = await this.apiClient.security.login(this.currentEndpoint);
+    const result = await this.apiClient.login(this.currentEndpoint);
     if (result.status === 'success') {
       const accessToken = result['jolokia-session-id'];
-      this.apiClient.Config.headers = {
-        ...this.apiClient.Config.headers,
-        'jolokia-session-id': accessToken,
-      };
+      this.apiClient.updateClientHeader('jolokia-session-id', accessToken);
       this.currentEndpoint.accessToken = accessToken;
       return 0;
     }
@@ -171,7 +143,10 @@ export class CommandContext {
   newGetCmd(): Command {
     const getCmd = new Command('get')
       .description('get information from a endpoint')
-      .argument('<path>', 'path of the component, [endpointName/componentType]')
+      .argument(
+        '<path>',
+        'path of the component, [endpointName/componentType[@endpointName]]',
+      )
       .argument('[compName]', 'name of the component', '')
       .option(
         '-a, --attributes <attributeNames...>',
@@ -251,7 +226,7 @@ export class CommandContext {
   async getAllBrokerComponents(): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getBrokerComponents();
+      const result = await this.apiClient.getBrokerComponents();
       printResult(result);
     } catch (ex) {
       printError('failed to get broker components', ex);
@@ -263,7 +238,7 @@ export class CommandContext {
   async getAllQueueComponents(): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getQueues({});
+      const result = await this.apiClient.getQueues();
       printResult(result);
     } catch (ex) {
       printError('failed to get queues', ex);
@@ -275,7 +250,7 @@ export class CommandContext {
   async getAllAddresses(): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getAddresses();
+      const result = await this.apiClient.getAddresses();
       printResult(result);
     } catch (ex) {
       printError('failed to get addresses', ex);
@@ -287,7 +262,7 @@ export class CommandContext {
   async getAllAcceptors(): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getAcceptors();
+      const result = await this.apiClient.getAcceptors();
       printResult(result);
     } catch (ex) {
       printError('failed to get acceptors', ex);
@@ -333,7 +308,7 @@ export class CommandContext {
   async getQueue(compName: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getQueues({});
+      const result = await this.apiClient.getQueues();
       const queues = result.filter((q) => q.name === compName);
       printResult(queues);
     } catch (ex) {
@@ -346,7 +321,7 @@ export class CommandContext {
   async getAddress(compName: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getAddresses();
+      const result = await this.apiClient.getAddresses();
       const addresses = result.filter((a) => a.name === compName);
       printResult(addresses);
     } catch (ex) {
@@ -359,7 +334,7 @@ export class CommandContext {
   async getAcceptor(compName: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.jolokia.getAcceptors();
+      const result = await this.apiClient.getAcceptors();
       const acceptors = result.filter((a) => a.name === compName);
       printResult(acceptors);
     } catch (ex) {
@@ -373,7 +348,7 @@ export class CommandContext {
     let retValue = 0;
     const opts = attributes === null ? {} : { names: attributes };
     try {
-      const values = await this.apiClient.jolokia.readBrokerAttributes(opts);
+      const values = await this.apiClient.readBrokerAttributes(opts);
       printResult(values);
     } catch (e) {
       printError('failed to read attributes', e);
@@ -387,7 +362,7 @@ export class CommandContext {
     attributes: string[],
   ): Promise<number> {
     let retValue = 0;
-    const result = await this.apiClient.jolokia.getQueues({});
+    const result = await this.apiClient.getQueues();
     const queues = result.filter((q) => q.name === compName);
     queues.forEach(async (q) => {
       const opts =
@@ -405,7 +380,7 @@ export class CommandContext {
             };
 
       try {
-        const values = await this.apiClient.jolokia.readQueueAttributes(opts);
+        const values = await this.apiClient.readQueueAttributes(opts);
         printResult(values);
       } catch (e) {
         printError('failed to read queue attributes', e);
@@ -425,7 +400,7 @@ export class CommandContext {
         ? { name: compName }
         : { name: compName, attrs: attributes };
     try {
-      const values = await this.apiClient.jolokia.readAddressAttributes(opts);
+      const values = await this.apiClient.readAddressAttributes(opts);
       printResult(values);
     } catch (e) {
       printError('failed to read address attributes', e);
@@ -444,7 +419,7 @@ export class CommandContext {
         ? { name: compName }
         : { name: compName, attrs: attributes };
     try {
-      const values = await this.apiClient.jolokia.readAcceptorAttributes(opts);
+      const values = await this.apiClient.readAcceptorAttributes(opts);
       printResult(values);
     } catch (e) {
       printError('failed to read acceptor attributes', e);
@@ -479,7 +454,7 @@ export class CommandContext {
   async getBroker(): Promise<number> {
     let retValue = 0;
     try {
-      const values = await this.apiClient.jolokia.getBrokers();
+      const values = await this.apiClient.getBrokers();
       printResult(values);
     } catch (ex) {
       printError('failed to get brokers', ex);
@@ -492,8 +467,11 @@ export class CommandContext {
 export class InteractiveCommandContext extends CommandContext {
   readonly endpoints: Map<string, CommandContext>;
 
-  constructor(apiServerUrl: string, endpointMap: Map<string, CommandContext>) {
-    super(apiServerUrl, '', null);
+  constructor(
+    serverAccess: ServerAccess,
+    endpointMap: Map<string, CommandContext>,
+  ) {
+    super(serverAccess, '', null);
     this.endpoints = endpointMap;
   }
 
@@ -533,7 +511,7 @@ export class InteractiveCommandContext extends CommandContext {
           port: this.getActualPort(url),
           accessToken: '',
         };
-        const context = new CommandContext(this.apiServerUrl, '', newEndpoint);
+        const context = new CommandContext(this.apiClient, '', newEndpoint);
         try {
           await context.login();
           context.currentEndpoint.brokerName = endpointName;
