@@ -20,12 +20,12 @@ export class Cli {
     let password: string;
     let shouldLogin = false;
 
-    if (options.userName) {
+    if (options.user) {
       if (!options.password) {
         printError('Error: no password');
         process.exit(1);
       }
-      userName = options.userName;
+      userName = options.user;
       password = options.password;
       shouldLogin = true;
     } else {
@@ -41,6 +41,7 @@ export class Cli {
     }
 
     if (shouldLogin) {
+      console.log('logging in', userName, 'pass', password);
       serverAccess
         .loginServer(userName, password)
         .then((res) => {
@@ -56,6 +57,8 @@ export class Cli {
           printError('Failed to login server', err);
           process.exit(1);
         });
+    } else {
+      Cli.internalStart(serverAccess, options, program);
     }
   };
 

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { ServerAccess } from './server-access';
 
-export interface JolokiaEndpoint {
+export class JolokiaEndpoint {
   brokerName: string;
   userName: string;
   password: string;
@@ -9,17 +9,44 @@ export interface JolokiaEndpoint {
   scheme: string;
   port: string;
   accessToken: string;
+
+  constructor(
+    endpointName: string,
+    userName: string,
+    password: string,
+    jolokiaHost: string,
+    scheme: string,
+    port: string,
+    accessToken: string,
+  ) {
+    this.brokerName = endpointName;
+    this.userName = userName;
+    this.password = password;
+    this.jolokiaHost = jolokiaHost;
+    this.scheme = scheme;
+    this.port = port;
+    this.accessToken = accessToken;
+  }
+
+  getUrl = () => {
+    return this.scheme + '://' + this.jolokiaHost + ':' + this.port;
+  };
 }
 
-const replaceErrors = (key: any, value: { [x: string]: any }) => {
-  if (value instanceof Error) {
-    const error = {};
+const replaceErrors = (key: any, value: any) => {
+  if (key === 'details') {
+    if (value instanceof Error) {
+      const error = {};
 
-    Object.getOwnPropertyNames(value).forEach(function (propName) {
-      error[propName] = value[propName];
-    });
+      Object.getOwnPropertyNames(value).forEach(function (propName) {
+        error[propName] = value[propName];
+      });
 
-    return error;
+      return error;
+    }
+    if (value instanceof Response) {
+      return { status: value.status, statusText: value.statusText };
+    }
   }
 
   return value;
@@ -63,6 +90,9 @@ export class CommandContext {
         scheme: url.protocol.substring(0, url.protocol.length - 1),
         port: this.getActualPort(url),
         accessToken: '',
+        getUrl() {
+          return endpointUrl;
+        },
       };
     } else {
       this.currentEndpoint = endpoint as JolokiaEndpoint;
@@ -109,7 +139,7 @@ export class CommandContext {
         try {
           await getCmd.parseAsync(resolvedArgs, { from: 'electron' });
         } catch (e) {
-          printError('failed to execut get command', e);
+          printError('failed to execute get command', e);
           retValue = 1;
         }
         break;
@@ -272,7 +302,15 @@ export class CommandContext {
   }
 
   async getAllClusterConnections(): Promise<number> {
-    throw new Error('Method not implemented.');
+    let retValue = 0;
+    try {
+      const result = await this.apiClient.getClusterConnections();
+      printResult(result);
+    } catch (ex) {
+      printError('failed to get cluster connections', ex);
+      retValue = 1;
+    }
+    return retValue;
   }
 
   async getAllComponents(targetType: string): Promise<number> {
@@ -427,6 +465,24 @@ export class CommandContext {
     }
     return retValue;
   }
+  async getClusterConnectionAttributes(
+    compName: string,
+    attributes: string[],
+  ): Promise<number> {
+    let retValue = 0;
+    const opts =
+      attributes === null
+        ? { name: compName }
+        : { name: compName, attrs: attributes };
+    try {
+      const values = await this.apiClient.readClusterConnectionAttributes(opts);
+      printResult(values);
+    } catch (e) {
+      printError('failed to read cluster connection attributes', e);
+      retValue = 1;
+    }
+    return retValue;
+  }
 
   async getComponentAttributes(
     targetType: string,
@@ -445,6 +501,9 @@ export class CommandContext {
       case 'acceptor':
       case 'acceptors':
         return await this.getAcceptorAttributes(compName, attributes);
+      case 'cluster-connection':
+      case 'cluster-connections':
+        return await this.getClusterConnectionAttributes(compName, attributes);
       default:
         printError('Error: component type not supported', targetType);
         return 1;
@@ -502,15 +561,15 @@ export class InteractiveCommandContext extends CommandContext {
           printError('endpoint already exists!');
         }
 
-        const newEndpoint = {
-          brokerName: endpointName,
-          userName: options.user,
-          password: options.password,
-          jolokiaHost: url.hostname,
-          scheme: url.protocol.substring(0, url.protocol.length - 1),
-          port: this.getActualPort(url),
-          accessToken: '',
-        };
+        const newEndpoint = new JolokiaEndpoint(
+          endpointName,
+          options.user,
+          options.password,
+          url.hostname,
+          url.protocol.substring(0, url.protocol.length - 1),
+          this.getActualPort(url),
+          '',
+        );
         const context = new CommandContext(this.apiClient, '', newEndpoint);
         try {
           await context.login();
@@ -545,7 +604,11 @@ export class InteractiveCommandContext extends CommandContext {
   }
 
   listJolokiaEndpoints(): number {
-    printResult(Object.fromEntries(this.endpoints));
+    const endpointList = new Array<string>();
+    this.endpoints.forEach((context, key) => {
+      endpointList.push(key + ': ' + context.currentEndpoint.getUrl());
+    });
+    printResult(endpointList);
     return 0;
   }
 

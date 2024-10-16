@@ -30,9 +30,8 @@ program
     'target jolokia endpoint url',
     'http://user:password@localhost/8161',
   )
-  .option('-n, --endpoint-name [endpoint_name]', 'target endpoint name')
   .option(
-    '-u, --user [user-name]',
+    '-u, --user [userName]',
     'user name to log in to the api server if security is enabled',
     false,
   )
@@ -41,12 +40,6 @@ program
     'user password to log in to the api server',
     false,
   )
-  .action((options) => {
-    if (options.endpoint && options.endpoint_name) {
-      console.error('Error: Options -e and -n are mutually exclusive.');
-      process.exit(1);
-    }
-  })
   .parse(process.argv);
 
 const cliOpts = program.opts();
@@ -62,6 +55,7 @@ serverAccess
       printError('The api server is not available', apiServerUrl);
       process.exit(1);
     }
+    console.log('starting command line tool');
     Cli.start(serverAccess, cliOpts, program);
   })
   .catch((e) => {

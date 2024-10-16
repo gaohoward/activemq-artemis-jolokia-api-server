@@ -44,7 +44,7 @@ export class ServerAccess {
   updateBearerToken(bearerToken: string) {
     this.apiClient.Config.headers = {
       ...this.apiClient.Config.headers,
-      'Authorization:': 'Bearer ' + bearerToken,
+      Authorization: 'Bearer ' + bearerToken,
     };
   }
 
@@ -68,13 +68,17 @@ export class ServerAccess {
     return this.apiClient.jolokia.getAcceptors();
   };
 
+  getClusterConnections = async () => {
+    return this.apiClient.jolokia.getClusterConnections();
+  };
+
   readBrokerAttributes = async (
     opts: { names?: undefined } | { names: string[] },
   ) => {
     return this.apiClient.jolokia.readBrokerAttributes(opts);
   };
 
-  readQueueAttributes = (
+  readQueueAttributes = async (
     opts:
       | {
           name: string;
@@ -92,7 +96,7 @@ export class ServerAccess {
     return this.apiClient.jolokia.readQueueAttributes(opts);
   };
 
-  readAddressAttributes = (
+  readAddressAttributes = async (
     opts:
       | { name: string; attrs?: undefined }
       | { name: string; attrs: string[] },
@@ -100,7 +104,7 @@ export class ServerAccess {
     return this.apiClient.jolokia.readAddressAttributes(opts);
   };
 
-  readAcceptorAttributes = (
+  readAcceptorAttributes = async (
     opts:
       | { name: string; attrs?: undefined }
       | { name: string; attrs: string[] },
@@ -108,7 +112,22 @@ export class ServerAccess {
     return this.apiClient.jolokia.readAcceptorAttributes(opts);
   };
 
-  getBrokers = () => {
-    return this.apiClient.jolokia.getBrokers();
+  readClusterConnectionAttributes = async (
+    opts:
+      | { name: string; attrs?: undefined }
+      | { name: string; attrs: string[] },
+  ) => {
+    return this.apiClient.jolokia.readClusterConnectionAttributes(opts);
+  };
+
+  getBrokers = async () => {
+    return this.apiClient.jolokia
+      .getBrokers()
+      .then((result) => {
+        return result;
+      })
+      .catch((ex) => {
+        throw ex;
+      });
   };
 }
