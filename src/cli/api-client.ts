@@ -117,22 +117,35 @@ export class ApiClient {
     },
   };
 
+  admin = {
+    listEndpoints: () => {
+      return this.Fetch<Endpoint[]>('get', '/admin/listEndpoints', {});
+    },
+  };
+
   jolokia = {
-    getBrokers: () => {
-      return this.Fetch<Broker[]>('get', '/brokers', {});
+    getBrokers: (search: { targetEndpoint?: string }) => {
+      return this.Fetch<Broker[]>('get', '/brokers', { search });
     },
 
-    getBrokerDetails: () => {
-      return this.Fetch<ComponentDetails>('get', '/brokerDetails', {});
+    getBrokerDetails: (search: { targetEndpoint?: string }) => {
+      return this.Fetch<ComponentDetails>('get', '/brokerDetails', { search });
     },
 
-    readBrokerAttributes: (search: { names?: string[] }) => {
+    readBrokerAttributes: (search: {
+      names?: string[];
+      targetEndpoint?: string;
+    }) => {
       return this.Fetch<ComponentAttribute[]>('get', '/readBrokerAttributes', {
         search,
       });
     },
 
-    readAddressAttributes: (search: { name?: string; attrs?: string[] }) => {
+    readAddressAttributes: (search: {
+      name?: string;
+      attrs?: string[];
+      targetEndpoint?: string;
+    }) => {
       return this.Fetch<ComponentAttribute[]>('get', '/readAddressAttributes', {
         search,
       });
@@ -143,13 +156,18 @@ export class ApiClient {
       address?: string;
       'routing-type'?: string;
       attrs?: string[];
+      targetEndpoint?: string;
     }) => {
       return this.Fetch<ComponentAttribute[]>('get', '/readQueueAttributes', {
         search,
       });
     },
 
-    readAcceptorAttributes: (search: { name?: string; attrs?: string[] }) => {
+    readAcceptorAttributes: (search: {
+      name?: string;
+      attrs?: string[];
+      targetEndpoint?: string;
+    }) => {
       return this.Fetch<ComponentAttribute[]>(
         'get',
         '/readAcceptorAttributes',
@@ -160,6 +178,7 @@ export class ApiClient {
     readClusterConnectionAttributes: (search: {
       name?: string;
       attrs?: string[];
+      targetEndpoint?: string;
     }) => {
       return this.Fetch<ComponentAttribute[]>(
         'get',
@@ -172,6 +191,7 @@ export class ApiClient {
       body: OperationRef,
       search: {
         name?: string;
+        targetEndpoint?: string;
       },
     ) => {
       return this.Fetch<ExecResult[]>(
@@ -185,19 +205,27 @@ export class ApiClient {
       return this.Fetch<DummyResponse>('get', '/checkCredentials', {});
     },
 
-    execBrokerOperation: (body: OperationRef) => {
-      return this.Fetch<ExecResult[]>('post', '/execBrokerOperation', { body });
+    execBrokerOperation: (
+      body: OperationRef,
+      search: {
+        targetEndpoint?: string;
+      },
+    ) => {
+      return this.Fetch<ExecResult[]>('post', '/execBrokerOperation', {
+        search,
+        body,
+      });
     },
 
-    getBrokerComponents: () => {
-      return this.Fetch<string[]>('get', '/brokerComponents', {});
+    getBrokerComponents: (search: { targetEndpoint?: string }) => {
+      return this.Fetch<string[]>('get', '/brokerComponents', { search });
     },
 
-    getAddresses: () => {
-      return this.Fetch<Address[]>('get', '/addresses', {});
+    getAddresses: (search: { targetEndpoint?: string }) => {
+      return this.Fetch<Address[]>('get', '/addresses', { search });
     },
 
-    getQueues: (search: { address?: string }) => {
+    getQueues: (search: { address?: string; targetEndpoint?: string }) => {
       return this.Fetch<Queue[]>('get', '/queues', { search });
     },
 
@@ -205,29 +233,38 @@ export class ApiClient {
       addressName?: string;
       name?: string;
       routingType?: string;
+      targetEndpoint?: string;
     }) => {
       return this.Fetch<ComponentDetails>('get', '/queueDetails', { search });
     },
 
-    getAddressDetails: (search: { name?: string }) => {
+    getAddressDetails: (search: { name?: string; targetEndpoint?: string }) => {
       return this.Fetch<ComponentDetails>('get', '/addressDetails', { search });
     },
 
-    getAcceptors: () => {
-      return this.Fetch<Acceptor[]>('get', '/acceptors', {});
+    getAcceptors: (search: { targetEndpoint?: string }) => {
+      return this.Fetch<Acceptor[]>('get', '/acceptors', { search });
     },
 
-    getAcceptorDetails: (search: { name?: string }) => {
+    getAcceptorDetails: (search: {
+      name?: string;
+      targetEndpoint?: string;
+    }) => {
       return this.Fetch<ComponentDetails>('get', '/acceptorDetails', {
         search,
       });
     },
 
-    getClusterConnections: () => {
-      return this.Fetch<ClusterConnection[]>('get', '/clusterConnections', {});
+    getClusterConnections: (search: { targetEndpoint?: string }) => {
+      return this.Fetch<ClusterConnection[]>('get', '/clusterConnections', {
+        search,
+      });
     },
 
-    getClusterConnectionDetails: (search: { name?: string }) => {
+    getClusterConnectionDetails: (search: {
+      name?: string;
+      targetEndpoint?: string;
+    }) => {
       return this.Fetch<ComponentDetails>('get', '/clusterConnectionDetails', {
         search,
       });
@@ -314,6 +351,11 @@ export type DummyResponse = {
 };
 
 export type EmptyBody = object | null;
+
+export type Endpoint = {
+  name: string;
+  url?: string;
+};
 
 export type ExecResult = {
   request: {

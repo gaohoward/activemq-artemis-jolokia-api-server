@@ -152,30 +152,36 @@ export class CommandContext {
     return retValue;
   }
 
-  parseGetPath(path: string): string {
+  parseGetPath = async (
+    path: string,
+    callback: (targetType: string, remoteEndpoint: string) => Promise<void>,
+  ): Promise<void> => {
     //for non-interactive mode if
     // path = '/' : to get all components of the target broker
     // path = '/<type>' : to get all components of <type>
     // path = '<type>' : same as '/<type>'
     let targetType: string;
+    let targetEndpoint: string = null;
     const pathElements = path.split('/');
     if (pathElements.length === 1) {
       targetType = pathElements[0];
     } else if (pathElements.length === 2) {
-      //ignore [0] as it will be processed by interactive context
       targetType = pathElements[1];
+      if (pathElements[0].startsWith('@')) {
+        targetEndpoint = pathElements[0].substring(1);
+      }
     } else {
       throw 'Invalid target expression: ' + path;
     }
-    return targetType;
-  }
+    await callback(targetType, targetEndpoint);
+  };
 
   newGetCmd(): Command {
     const getCmd = new Command('get')
       .description('get information from a endpoint')
       .argument(
         '<path>',
-        'path of the component, [endpointName/componentType[@endpointName]]',
+        'path of the component with format [[@]endpointName/componentType] where @ means a remote target',
       )
       .argument('[compName]', 'name of the component', '')
       .option(
@@ -185,78 +191,82 @@ export class CommandContext {
       .exitOverride()
       .showHelpAfterError()
       .action(async (path, compName, options, cmd): Promise<void> => {
-        try {
-          const targetType = this.parseGetPath(path);
+        await this.parseGetPath(path, async (targetType, remoteEndpoint) => {
           if (compName === '') {
             // read all comps of type
             if (targetType === '') {
               // '/' get broker info
               if (options.attributes?.length > 0) {
                 await this.getComponentAttributes(
+                  remoteEndpoint,
                   'broker',
                   '',
                   options.attributes[0] === '*' ? null : options.attributes,
                 );
               } else {
-                await this.getComponent('broker', '');
+                await this.getComponent(remoteEndpoint, 'broker', '');
               }
             } else if (targetType === '*') {
               // '/*' to get all components
               if (options.attributes?.length > 0) {
                 throw Error('cannot specify attributes for all components');
               } else {
-                await this.getAllComponents('');
+                await this.getAllComponents(remoteEndpoint, '');
               }
             } else {
               // '/type' read all comps of type
               if (options.attributes?.length > 0) {
                 throw 'need a component name to get attributes of';
               }
-              await this.getAllComponents(targetType);
+              await this.getAllComponents(remoteEndpoint, targetType);
             }
           } else {
             if (options.attributes?.length > 0) {
               // '/type or type -a ...' read one comp's attributes
               await this.getComponentAttributes(
+                remoteEndpoint,
                 targetType,
                 compName,
                 options.attributes[0] === '*' ? null : options.attributes,
               );
             } else {
               //nothing specified, just return type info
-              await this.getComponent(targetType, compName);
+              await this.getComponent(remoteEndpoint, targetType, compName);
             }
           }
-        } catch (e) {
-          cmd.error('error parsing targetType');
-        }
+        });
       });
     return getCmd;
   }
 
-  async getComponent(targetType: string, compName: string): Promise<number> {
+  async getComponent(
+    remoteEndpoint: string,
+    targetType: string,
+    compName: string,
+  ): Promise<number> {
     switch (targetType) {
       case 'broker':
-        return await this.getBroker();
+        return await this.getBroker(remoteEndpoint);
       case 'queue':
       case 'queues':
-        return await this.getQueue(compName);
+        return await this.getQueue(remoteEndpoint, compName);
       case 'address':
       case 'addresses':
-        return await this.getAddress(compName);
+        return await this.getAddress(remoteEndpoint, compName);
       case 'acceptor':
       case 'acceptors':
-        return await this.getAcceptor(compName);
+        return await this.getAcceptor(remoteEndpoint, compName);
       default:
         printError('component type not supported', targetType);
         return 1;
     }
   }
 
-  async getAllBrokerComponents(): Promise<number> {
+  async getAllBrokerComponents(remoteTarget: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getBrokerComponents();
+      console.log('getting all broker points', remoteTarget, 'aaa');
+      const result = await this.apiClient.getBrokerComponents(remoteTarget);
       printResult(result);
     } catch (ex) {
       printError('failed to get broker components', ex);
@@ -265,22 +275,25 @@ export class CommandContext {
     return retValue;
   }
 
-  async getAllQueueComponents(): Promise<number> {
+  async getAllQueueComponents(remoteTarget: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getQueues();
+      const result = await this.apiClient.getQueues(remoteTarget);
       printResult(result);
     } catch (ex) {
-      printError('failed to get queues', ex);
+      printError(
+        'failed to get queues at ' + remoteTarget ? remoteTarget : 'current',
+        ex,
+      );
       retValue = 1;
     }
     return retValue;
   }
 
-  async getAllAddresses(): Promise<number> {
+  async getAllAddresses(remoteTarget: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getAddresses();
+      const result = await this.apiClient.getAddresses(remoteTarget);
       printResult(result);
     } catch (ex) {
       printError('failed to get addresses', ex);
@@ -289,10 +302,10 @@ export class CommandContext {
     return retValue;
   }
 
-  async getAllAcceptors(): Promise<number> {
+  async getAllAcceptors(remoteTarget: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getAcceptors();
+      const result = await this.apiClient.getAcceptors(remoteTarget);
       printResult(result);
     } catch (ex) {
       printError('failed to get acceptors', ex);
@@ -301,10 +314,10 @@ export class CommandContext {
     return retValue;
   }
 
-  async getAllClusterConnections(): Promise<number> {
+  async getAllClusterConnections(remoteTarget: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getClusterConnections();
+      const result = await this.apiClient.getClusterConnections(remoteTarget);
       printResult(result);
     } catch (ex) {
       printError('failed to get cluster connections', ex);
@@ -313,22 +326,25 @@ export class CommandContext {
     return retValue;
   }
 
-  async getAllComponents(targetType: string): Promise<number> {
+  async getAllComponents(
+    remoteEndpoint: string,
+    targetType: string,
+  ): Promise<number> {
     switch (targetType) {
       case '':
-        return await this.getAllBrokerComponents();
+        return await this.getAllBrokerComponents(remoteEndpoint);
       case 'queue':
       case 'queues':
-        return await this.getAllQueueComponents();
+        return await this.getAllQueueComponents(remoteEndpoint);
       case 'address':
       case 'addresses':
-        return await this.getAllAddresses();
+        return await this.getAllAddresses(remoteEndpoint);
       case 'acceptor':
       case 'acceptors':
-        return await this.getAllAcceptors();
+        return await this.getAllAcceptors(remoteEndpoint);
       case 'cluster-connection':
       case 'cluster-connections':
-        return await this.getAllClusterConnections();
+        return await this.getAllClusterConnections(remoteEndpoint);
       case 'bridge':
       case 'bridges':
         printError('not implemented!');
@@ -343,10 +359,10 @@ export class CommandContext {
     }
   }
 
-  async getQueue(compName: string): Promise<number> {
+  async getQueue(remoteEndpoint: string, compName: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getQueues();
+      const result = await this.apiClient.getQueues(remoteEndpoint);
       const queues = result.filter((q) => q.name === compName);
       printResult(queues);
     } catch (ex) {
@@ -356,10 +372,10 @@ export class CommandContext {
     return retValue;
   }
 
-  async getAddress(compName: string): Promise<number> {
+  async getAddress(remoteTarget: string, compName: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getAddresses();
+      const result = await this.apiClient.getAddresses(remoteTarget);
       const addresses = result.filter((a) => a.name === compName);
       printResult(addresses);
     } catch (ex) {
@@ -369,10 +385,10 @@ export class CommandContext {
     return retValue;
   }
 
-  async getAcceptor(compName: string): Promise<number> {
+  async getAcceptor(remoteTarget: string, compName: string): Promise<number> {
     let retValue = 0;
     try {
-      const result = await this.apiClient.getAcceptors();
+      const result = await this.apiClient.getAcceptors(remoteTarget);
       const acceptors = result.filter((a) => a.name === compName);
       printResult(acceptors);
     } catch (ex) {
@@ -382,11 +398,17 @@ export class CommandContext {
     return retValue;
   }
 
-  async getBrokerAttributes(attributes: string[]): Promise<number> {
+  async getBrokerAttributes(
+    remoteTarget: string,
+    attributes: string[],
+  ): Promise<number> {
     let retValue = 0;
     const opts = attributes === null ? {} : { names: attributes };
     try {
-      const values = await this.apiClient.readBrokerAttributes(opts);
+      const values = await this.apiClient.readBrokerAttributes(
+        remoteTarget,
+        opts,
+      );
       printResult(values);
     } catch (e) {
       printError('failed to read attributes', e);
@@ -396,11 +418,12 @@ export class CommandContext {
   }
 
   async getQueueAttributes(
+    remoteTarget: string,
     compName: string,
     attributes: string[],
   ): Promise<number> {
     let retValue = 0;
-    const result = await this.apiClient.getQueues();
+    const result = await this.apiClient.getQueues(remoteTarget);
     const queues = result.filter((q) => q.name === compName);
     queues.forEach(async (q) => {
       const opts =
@@ -418,7 +441,10 @@ export class CommandContext {
             };
 
       try {
-        const values = await this.apiClient.readQueueAttributes(opts);
+        const values = await this.apiClient.readQueueAttributes(
+          remoteTarget,
+          opts,
+        );
         printResult(values);
       } catch (e) {
         printError('failed to read queue attributes', e);
@@ -429,6 +455,7 @@ export class CommandContext {
   }
 
   async getAddressAttributes(
+    remoteTarget: string,
     compName: string,
     attributes: string[],
   ): Promise<number> {
@@ -438,7 +465,10 @@ export class CommandContext {
         ? { name: compName }
         : { name: compName, attrs: attributes };
     try {
-      const values = await this.apiClient.readAddressAttributes(opts);
+      const values = await this.apiClient.readAddressAttributes(
+        remoteTarget,
+        opts,
+      );
       printResult(values);
     } catch (e) {
       printError('failed to read address attributes', e);
@@ -448,6 +478,7 @@ export class CommandContext {
   }
 
   async getAcceptorAttributes(
+    remoteTarget: string,
     compName: string,
     attributes: string[],
   ): Promise<number> {
@@ -457,7 +488,10 @@ export class CommandContext {
         ? { name: compName }
         : { name: compName, attrs: attributes };
     try {
-      const values = await this.apiClient.readAcceptorAttributes(opts);
+      const values = await this.apiClient.readAcceptorAttributes(
+        remoteTarget,
+        opts,
+      );
       printResult(values);
     } catch (e) {
       printError('failed to read acceptor attributes', e);
@@ -466,6 +500,7 @@ export class CommandContext {
     return retValue;
   }
   async getClusterConnectionAttributes(
+    remoteTarget: string,
     compName: string,
     attributes: string[],
   ): Promise<number> {
@@ -475,7 +510,10 @@ export class CommandContext {
         ? { name: compName }
         : { name: compName, attrs: attributes };
     try {
-      const values = await this.apiClient.readClusterConnectionAttributes(opts);
+      const values = await this.apiClient.readClusterConnectionAttributes(
+        remoteTarget,
+        opts,
+      );
       printResult(values);
     } catch (e) {
       printError('failed to read cluster connection attributes', e);
@@ -485,35 +523,52 @@ export class CommandContext {
   }
 
   async getComponentAttributes(
+    remoteEndpoint: string,
     targetType: string,
     compName: string,
     attributes: string[],
   ): Promise<number> {
     switch (targetType) {
       case 'broker':
-        return await this.getBrokerAttributes(attributes);
+        return await this.getBrokerAttributes(remoteEndpoint, attributes);
       case 'queue':
       case 'queues':
-        return await this.getQueueAttributes(compName, attributes);
+        return await this.getQueueAttributes(
+          remoteEndpoint,
+          compName,
+          attributes,
+        );
       case 'address':
       case 'addresses':
-        return await this.getAddressAttributes(compName, attributes);
+        return await this.getAddressAttributes(
+          remoteEndpoint,
+          compName,
+          attributes,
+        );
       case 'acceptor':
       case 'acceptors':
-        return await this.getAcceptorAttributes(compName, attributes);
+        return await this.getAcceptorAttributes(
+          remoteEndpoint,
+          compName,
+          attributes,
+        );
       case 'cluster-connection':
       case 'cluster-connections':
-        return await this.getClusterConnectionAttributes(compName, attributes);
+        return await this.getClusterConnectionAttributes(
+          remoteEndpoint,
+          compName,
+          attributes,
+        );
       default:
         printError('Error: component type not supported', targetType);
         return 1;
     }
   }
 
-  async getBroker(): Promise<number> {
+  async getBroker(remoteEndpoint: string): Promise<number> {
     let retValue = 0;
     try {
-      const values = await this.apiClient.getBrokers();
+      const values = await this.apiClient.getBrokers(remoteEndpoint);
       printResult(values);
     } catch (ex) {
       printError('failed to get brokers', ex);
@@ -609,6 +664,7 @@ export class InteractiveCommandContext extends CommandContext {
       endpointList.push(key + ': ' + context.currentEndpoint.getUrl());
     });
     printResult(endpointList);
+
     return 0;
   }
 
@@ -645,23 +701,37 @@ export class InteractiveCommandContext extends CommandContext {
     return retValue;
   }
 
+  // command path is in form:
+  // [[@]endpointName]/[componentType]
+  // if @ is present it means endpointName is targeted at api server
+  // if @ is not present it means a local endpoint
+  // if endpointName part is absent at all it means current local endpoint
+  // componentType is the target component of a broker (queues, address, etc)
+  // if componentType is absent it means all components of the broker
+  // if path is / it gets the mbean info of the current local broker.
   getContextForCmd(path: string): CommandContext {
-    if (this.endpoints.size === 0) {
-      throw Error('there is no endpoint for command');
-    }
     if (!path) {
       return this;
     }
-    const elements = path.split('/');
-    if (elements.length === 2 && elements[0] !== '') {
-      if (this.hasEndpoint(elements[0])) {
-        if (elements[0] === this.currentEndpoint?.brokerName) {
-          return this;
+
+    const isRemoteTarget = path.startsWith('@');
+
+    if (!isRemoteTarget) {
+      if (this.endpoints.size === 0) {
+        throw Error('there is no endpoint for command');
+      }
+
+      const elements = path.split('/');
+      if (elements.length === 2 && elements[0] !== '') {
+        if (this.hasEndpoint(elements[0])) {
+          if (elements[0] === this.currentEndpoint?.brokerName) {
+            return this;
+          } else {
+            return this.getEndpoint(elements[0]) as CommandContext;
+          }
         } else {
-          return this.getEndpoint(elements[0]) as CommandContext;
+          throw Error('target endpoint not exist: ' + elements[0]);
         }
-      } else {
-        throw Error('target endpoint not exist: ' + elements[0]);
       }
     }
     return this;

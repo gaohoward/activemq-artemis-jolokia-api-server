@@ -37,7 +37,7 @@ export class ServerAccess {
   updateClientHeader = (name: string, accessToken: string) => {
     this.apiClient.Config.headers = {
       ...this.apiClient.Config.headers,
-      'jolokia-session-id': accessToken,
+      [name]: accessToken,
     };
   };
 
@@ -52,33 +52,50 @@ export class ServerAccess {
     return this.apiClient.security.serverLogin({ userName, password });
   };
 
-  getBrokerComponents = async () => {
-    return this.apiClient.jolokia.getBrokerComponents();
+  getTargetOpts = (remoteTarget: string) => {
+    return remoteTarget ? { targetEndpoint: remoteTarget } : {};
   };
 
-  getQueues = async () => {
-    return this.apiClient.jolokia.getQueues({});
+  getBrokerComponents = async (remoteTarget: string) => {
+    return this.apiClient.jolokia.getBrokerComponents(
+      this.getTargetOpts(remoteTarget),
+    );
   };
 
-  getAddresses = async () => {
-    return this.apiClient.jolokia.getAddresses();
+  getQueues = async (remoteTarget: string) => {
+    return this.apiClient.jolokia.getQueues(this.getTargetOpts(remoteTarget));
   };
 
-  getAcceptors = async () => {
-    return this.apiClient.jolokia.getAcceptors();
+  getAddresses = async (remoteTarget: string) => {
+    return this.apiClient.jolokia.getAddresses(
+      this.getTargetOpts(remoteTarget),
+    );
   };
 
-  getClusterConnections = async () => {
-    return this.apiClient.jolokia.getClusterConnections();
+  getAcceptors = async (remoteTarget: string) => {
+    return this.apiClient.jolokia.getAcceptors(
+      this.getTargetOpts(remoteTarget),
+    );
+  };
+
+  getClusterConnections = async (remoteTarget: string) => {
+    return this.apiClient.jolokia.getClusterConnections(
+      this.getTargetOpts(remoteTarget),
+    );
   };
 
   readBrokerAttributes = async (
+    remoteTarget: string,
     opts: { names?: undefined } | { names: string[] },
   ) => {
-    return this.apiClient.jolokia.readBrokerAttributes(opts);
+    return this.apiClient.jolokia.readBrokerAttributes({
+      ...opts,
+      ...this.getTargetOpts(remoteTarget),
+    });
   };
 
   readQueueAttributes = async (
+    remoteTarget,
     opts:
       | {
           name: string;
@@ -93,36 +110,51 @@ export class ServerAccess {
           attrs: string[];
         },
   ) => {
-    return this.apiClient.jolokia.readQueueAttributes(opts);
+    return this.apiClient.jolokia.readQueueAttributes({
+      ...opts,
+      ...this.getTargetOpts(remoteTarget),
+    });
   };
 
   readAddressAttributes = async (
+    remoteTarget: string,
     opts:
       | { name: string; attrs?: undefined }
       | { name: string; attrs: string[] },
   ) => {
-    return this.apiClient.jolokia.readAddressAttributes(opts);
+    return this.apiClient.jolokia.readAddressAttributes({
+      ...opts,
+      ...this.getTargetOpts(remoteTarget),
+    });
   };
 
   readAcceptorAttributes = async (
+    remoteTarget: string,
     opts:
       | { name: string; attrs?: undefined }
       | { name: string; attrs: string[] },
   ) => {
-    return this.apiClient.jolokia.readAcceptorAttributes(opts);
+    return this.apiClient.jolokia.readAcceptorAttributes({
+      ...opts,
+      ...this.getTargetOpts(remoteTarget),
+    });
   };
 
   readClusterConnectionAttributes = async (
+    remoteTarget: string,
     opts:
       | { name: string; attrs?: undefined }
       | { name: string; attrs: string[] },
   ) => {
-    return this.apiClient.jolokia.readClusterConnectionAttributes(opts);
+    return this.apiClient.jolokia.readClusterConnectionAttributes({
+      ...opts,
+      ...this.getTargetOpts(remoteTarget),
+    });
   };
 
-  getBrokers = async () => {
+  getBrokers = async (remoteEndpoint: string) => {
     return this.apiClient.jolokia
-      .getBrokers()
+      .getBrokers(this.getTargetOpts(remoteEndpoint))
       .then((result) => {
         return result;
       })
