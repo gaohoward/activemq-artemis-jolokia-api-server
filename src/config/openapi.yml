@@ -253,7 +253,7 @@ paths:
               schema:
                 type: object
                 $ref: '#/components/schemas/FailureResponse'
-  /admin/listEndpoints:
+  /server/admin/listEndpoints:
     get:
       summary: List endpoints managed by the api-server
       description: >

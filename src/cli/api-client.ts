@@ -119,7 +119,7 @@ export class ApiClient {
 
   admin = {
     listEndpoints: () => {
-      return this.Fetch<Endpoint[]>('get', '/admin/listEndpoints', {});
+      return this.Fetch<Endpoint[]>('get', '/server/admin/listEndpoints', {});
     },
   };
 

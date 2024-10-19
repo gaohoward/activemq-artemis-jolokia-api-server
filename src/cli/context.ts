@@ -639,7 +639,7 @@ export class InteractiveCommandContext extends CommandContext {
     return addCmd;
   }
 
-  async addEndpoint(args: string[]): Promise<number> {
+  addEndpoint = async (args: string[]): Promise<number> => {
     let retValue = 0;
     const addCmd = this.newAddCmd();
     try {
@@ -652,21 +652,26 @@ export class InteractiveCommandContext extends CommandContext {
       retValue = 1;
     }
     return retValue;
-  }
+  };
 
-  getEndpoint(endpointName: string): CommandContext | undefined {
+  getEndpoint = (endpointName: string): CommandContext | undefined => {
     return this.endpoints.get(endpointName);
-  }
+  };
 
-  listJolokiaEndpoints(): number {
+  listJolokiaEndpoints = async (): Promise<number> => {
     const endpointList = new Array<string>();
     this.endpoints.forEach((context, key) => {
-      endpointList.push(key + ': ' + context.currentEndpoint.getUrl());
+      endpointList.push(key + '(local): ' + context.currentEndpoint.getUrl());
+    });
+
+    const remoteEndpoints = await this.apiClient.listEndpoints();
+    remoteEndpoints.forEach((e) => {
+      endpointList.push(e.name + ': ' + e.url);
     });
     printResult(endpointList);
 
     return 0;
-  }
+  };
 
   switchContext(target: CommandContext) {
     this.apiClient = target.apiClient;
@@ -709,7 +714,7 @@ export class InteractiveCommandContext extends CommandContext {
   // componentType is the target component of a broker (queues, address, etc)
   // if componentType is absent it means all components of the broker
   // if path is / it gets the mbean info of the current local broker.
-  getContextForCmd(path: string): CommandContext {
+  getContextForGetCmd(path: string): CommandContext {
     if (!path) {
       return this;
     }
@@ -745,13 +750,13 @@ export class InteractiveCommandContext extends CommandContext {
       case 'add':
         return await this.addEndpoint(args);
       case 'list':
-        return this.listJolokiaEndpoints();
+        return await this.listJolokiaEndpoints();
       case 'switch':
         return this.switchJolokiaEndpoint(args);
-      default: {
+      case 'get': {
         let context: CommandContext;
         try {
-          context = this.getContextForCmd(args[1]);
+          context = this.getContextForGetCmd(args[1]);
         } catch (ex) {
           printError('failed to get context', ex);
           return 1;

@@ -153,13 +153,12 @@ export class ServerAccess {
   };
 
   getBrokers = async (remoteEndpoint: string) => {
-    return this.apiClient.jolokia
-      .getBrokers(this.getTargetOpts(remoteEndpoint))
-      .then((result) => {
-        return result;
-      })
-      .catch((ex) => {
-        throw ex;
-      });
+    return this.apiClient.jolokia.getBrokers(
+      this.getTargetOpts(remoteEndpoint),
+    );
+  };
+
+  listEndpoints = async () => {
+    return this.apiClient.admin.listEndpoints();
   };
 }
