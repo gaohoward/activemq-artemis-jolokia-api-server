@@ -1,6 +1,7 @@
 import * as express from 'express';
 import jwt from 'jsonwebtoken';
 import { ArtemisJolokia } from '../apiutil/artemis_jolokia';
+import { logger } from '../../utils/logger';
 
 const securityStore = new Map<string, ArtemisJolokia>();
 
@@ -22,7 +23,7 @@ const validateHostName = (host: string) => {
   let validHost: string = host;
   if (process.env.NODE_ENV === 'production') {
     if (!host.includes('wconsj')) {
-      console.log('invalid host', host);
+      logger.warn('invalid host', host);
       return null;
     } else {
       validHost = host;
@@ -35,7 +36,7 @@ const validateScheme = (scheme: string) => {
   let validScheme: string = scheme;
   if (process.env.NODE_ENV === 'production') {
     if (scheme !== 'http' && scheme !== 'https') {
-      console.log('invalid scheme', scheme);
+      logger.warn('invalid scheme', scheme);
       return null;
     } else {
       validScheme = scheme;
@@ -50,7 +51,7 @@ const validatePort = (port: string) => {
   if (num >= 1 && num <= 65535 && port === num.toString()) {
     validPort = port;
   } else {
-    console.log('invalid port', port);
+    logger.warn('invalid port', port);
     return null;
   }
   return validPort;
@@ -62,7 +63,6 @@ export const login = (req: express.Request, res: express.Response) => {
     req.body;
 
   const validHost = validateHostName(jolokiaHost);
-  console.log('validHost is ', validHost);
   if (!validHost) {
     res.status(401).json({
       status: 'failed',
@@ -87,15 +87,6 @@ export const login = (req: express.Request, res: express.Response) => {
     return;
   }
 
-  console.log(
-    'login',
-    'brokerKey',
-    brokerName,
-    'user',
-    userName,
-    'host',
-    validHost,
-  );
   const jolokia = new ArtemisJolokia(
     userName,
     password,
@@ -109,7 +100,6 @@ export const login = (req: express.Request, res: express.Response) => {
       .validateUser()
       .then((result) => {
         if (result) {
-          console.log('user is valid');
           const token = generateJWTToken(brokerName);
           securityStore.set(brokerName, jolokia);
 
@@ -127,7 +117,7 @@ export const login = (req: express.Request, res: express.Response) => {
         res.end();
       })
       .catch((e) => {
-        console.log('got exception while login', e);
+        logger.error('got exception while login', e);
         res.status(500).json({
           status: 'failed',
           message: 'Internal error',
@@ -155,25 +145,20 @@ export const VerifyLogin = async (
   res: express.Response,
   next: any,
 ) => {
-  console.log('verify login for request:', req.path);
   try {
     if (ignoreAuth(req.path)) {
-      console.log('ignore path', req.path);
       next();
     } else {
       const authHeader = req.headers['jolokia-session-id'] as string;
 
       if (!authHeader) {
-        console.log('no auth');
         res.sendStatus(401);
       } else {
-        console.log('verifying header', authHeader);
         jwt.verify(
           authHeader,
           getSecretToken(),
           async (err: any, decoded: any) => {
             if (err) {
-              console.log('verify failed', err);
               res.status(401).json({
                 status: 'failed',
                 message: 'This session has expired. Please login again',

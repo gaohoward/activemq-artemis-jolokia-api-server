@@ -10,22 +10,23 @@ import path from 'path';
 import cors from 'cors';
 
 import * as api from '../api/controllers';
+import { logger, logRequest } from './logger';
 
 export let API_SUMMARY: Summary;
 
-const createServer = async (): Promise<Express> => {
+const createServer = async (enableLogRequest: boolean): Promise<Express> => {
   const yamlSpecFile = path.join(__dirname, '../config/openapi.yml');
-  console.log('parseing api.yaml', yamlSpecFile);
 
   const ymlData = fs.readFileSync(yamlSpecFile, 'utf-8');
   const apiDefinition = YAML.load(ymlData) as object;
-  console.log('LOADED apiDef', apiDefinition);
   API_SUMMARY = summarise(apiDefinition);
-  console.log('output summary', API_SUMMARY);
-  console.info(API_SUMMARY);
+
+  logger.debug(API_SUMMARY);
 
   const server = express();
   // here we can intialize body/cookies parsers, connect logger, for example morgan
+
+  server.use(logRequest(enableLogRequest));
 
   const limiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -51,7 +52,7 @@ const createServer = async (): Promise<Express> => {
   server.use(OpenApiValidator.middleware(validatorOptions));
   server.use((req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
-      console.log(
+      logger.debug(
         'in redirect handler, x-forward-proto',
         req.headers['x-forwarded-proto'],
         'method',
@@ -62,7 +63,7 @@ const createServer = async (): Promise<Express> => {
         req.method !== 'OPTIONS'
       ) {
         const redirUrl = 'https://' + req.headers.host + req.url;
-        console.log('redirecting to', redirUrl);
+        logger.debug('redirecting to', redirUrl);
         return res.redirect(redirUrl);
       } else {
         next();
@@ -75,7 +76,7 @@ const createServer = async (): Promise<Express> => {
 
   const connect = connector(api, apiDefinition, {
     onCreateRoute: (method: string, descriptor: any[]) => {
-      console.log(
+      logger.info(
         `${method}: ${descriptor[0]} : ${(descriptor[1] as any).name}`,
       );
     },

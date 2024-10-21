@@ -616,7 +616,6 @@ export class ArtemisJolokia {
       this.brokerName = this.brokerName.replace(/"/g, '');
       return true;
     }
-    console.log('User is not valid', this.username);
     return false;
   };
 

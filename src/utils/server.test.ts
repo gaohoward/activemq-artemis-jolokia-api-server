@@ -19,7 +19,9 @@ const jolokiaHost = 'broker-0.test.com';
 const jolokiaPort = '8161';
 
 const startApiServer = async (): Promise<boolean> => {
-  const result = await createServer()
+  process.env.API_SERVER_SECURITY_ENABLED = 'false';
+
+  const result = await createServer(false)
     .then((server) => {
       const options = {
         key: fs.readFileSync(path.join(__dirname, '../config/domain.key')),

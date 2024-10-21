@@ -6,6 +6,7 @@ import {
   JolokiaReadResponse,
 } from '../apiutil/artemis_jolokia';
 import { API_SUMMARY } from '../../utils/server';
+import { logger } from '../../utils/logger';
 
 const BROKER = 'broker';
 const ADDRESS = 'address';
@@ -40,10 +41,10 @@ export const getBrokers = (_: express.Request, res: express.Response): void => {
         );
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -76,10 +77,10 @@ export const getClusterConnections = (
         );
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -105,11 +106,11 @@ export const readClusterConnectionAttributes = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -141,11 +142,11 @@ export const getClusterConnectionDetails = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -187,11 +188,11 @@ export const execClusterConnectionOperation = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -224,10 +225,10 @@ export const getAcceptors = (
         );
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -253,11 +254,11 @@ export const readAcceptorAttributes = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -279,10 +280,10 @@ export const getBrokerComponents = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -314,10 +315,10 @@ export const getAddresses = (
         );
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -343,11 +344,11 @@ export const readAddressAttributes = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -392,10 +393,10 @@ export const getQueues = (
         );
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -425,11 +426,11 @@ export const readQueueAttributes = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -457,11 +458,11 @@ export const getBrokerDetails = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -513,11 +514,11 @@ export const execBrokerOperation = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -539,11 +540,11 @@ export const readBrokerAttributes = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -575,11 +576,11 @@ export const getAddressDetails = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -611,11 +612,11 @@ export const getAcceptorDetails = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
@@ -653,11 +654,11 @@ export const getQueueDetails = (
         res.json(result);
       })
       .catch((error: any) => {
-        console.log(error);
+        logger.error(error);
         res.status(500).json({ status: 'error', message: 'server error' });
       });
   } catch (err) {
-    console.log(err);
+    logger.error(err);
     res.status(500).json({
       status: 'error',
       message: 'server error: ' + JSON.stringify(err),
