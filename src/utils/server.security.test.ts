@@ -18,9 +18,13 @@ let testServer: https.Server;
 let mockJolokia: nock.Scope;
 
 let mockBroker1: nock.Scope;
+let mockBroker2: nock.Scope;
+let mockBroker3: nock.Scope;
+let mockBroker4: nock.Scope;
 
 const apiUrlBase = 'https://localhost:9444/api/v1';
 const apiUrlPrefix = '/console/jolokia';
+const strictedApiUrlPrefix = '/jolokia';
 const loginUrl = apiUrlBase + '/jolokia/login';
 const serverLoginUrl = apiUrlBase + '/server/login';
 const jolokiaProtocol = 'https';
@@ -30,6 +34,10 @@ const jolokiaSessionKey = 'jolokia-session-id';
 
 // see .test.endpoints.json
 const broker1EndpointUrl = 'http://127.0.0.1:8161';
+const broker2EndpointUrl = 'http://127.0.0.2:8161';
+const broker3EndpointUrl = 'http://127.0.0.3:8161';
+const broker4EndpointUrl =
+  'https://artemis-broker-jolokia-0-svc-ing-default.artemiscloud.io:443';
 
 const startApiServer = async (): Promise<boolean> => {
   process.env.API_SERVER_SECURITY_ENABLED = 'true';
@@ -66,6 +74,9 @@ const stopApiServer = () => {
 const startMockJolokia = () => {
   mockJolokia = nock(jolokiaProtocol + '://' + jolokiaHost + ':' + jolokiaPort);
   mockBroker1 = nock(broker1EndpointUrl);
+  mockBroker2 = nock(broker2EndpointUrl);
+  mockBroker3 = nock(broker3EndpointUrl);
+  mockBroker4 = nock(broker4EndpointUrl);
 };
 
 const stopMockJolokia = () => {
@@ -363,10 +374,13 @@ describe('check security manager', () => {
 
   it('check user role mapping', () => {
     const users = securityStore.getAllUsers();
-    expect(users.size).toEqual(3);
+    expect(users.size).toEqual(5);
     expect(users.has('user1')).toBeTruthy();
     expect(users.has('user2')).toBeTruthy();
     expect(users.has('root')).toBeTruthy();
+    expect(users.has('usernoroles')).toBeTruthy();
+    //super user
+    expect(users.has('admin')).toBeTruthy();
 
     const roles = securityStore.getAllRoles();
     expect(roles.size).toEqual(3);
@@ -399,12 +413,13 @@ describe('test endpoint access with successful auth', () => {
   it('test get brokers', async () => {
     const result = [
       {
-        name: '127.0.0.1',
+        name: 'amq-broker1',
       },
     ];
-    const jolokiaResp = {
+
+    const jolokiaResp1 = {
       request: {},
-      value: ['org.apache.activemq.artemis:broker="127.0.0.1"'],
+      value: ['org.apache.activemq.artemis:broker="amq-broker1"'],
       timestamp: 1714703745,
       status: 200,
     };
@@ -413,7 +428,7 @@ describe('test endpoint access with successful auth', () => {
     mockBroker1
       .persist()
       .get(apiUrlPrefix + '/search/org.apache.activemq.artemis:broker=*')
-      .reply(200, JSON.stringify(jolokiaResp));
+      .reply(200, JSON.stringify(jolokiaResp1));
 
     const resp = await doGet('/brokers?targetEndpoint=broker1', null, jwtToken);
 
@@ -427,7 +442,7 @@ describe('test endpoint access with successful auth', () => {
   it('test execBrokerOperation', async () => {
     const jolokiaGetResp = {
       request: {},
-      value: ['org.apache.activemq.artemis:broker="127.0.0.1"'],
+      value: ['org.apache.activemq.artemis:broker="amq-broker1"'],
       timestamp: 1714703745,
       status: 200,
     };
@@ -441,7 +456,7 @@ describe('test endpoint access with successful auth', () => {
     const jolokiaResp = [
       {
         request: {
-          mbean: 'org.apache.activemq.artemis:broker="127.0.0.1"',
+          mbean: 'org.apache.activemq.artemis:broker="amq-broker1"',
           arguments: [','],
           type: 'exec',
           operation: 'listAddresses(java.lang.String)',
@@ -458,7 +473,8 @@ describe('test endpoint access with successful auth', () => {
         if (
           body.length === 1 &&
           body[0].type === 'exec' &&
-          body[0].mbean === 'org.apache.activemq.artemis:broker="127.0.0.1"' &&
+          body[0].mbean ===
+            'org.apache.activemq.artemis:broker="amq-broker1"' &&
           body[0].operation === 'listAddresses(java.lang.String)' &&
           body[0].arguments[0] === ','
         ) {
@@ -499,7 +515,7 @@ describe('test endpoint access with permission denied', () => {
   it('test get brokers get denied on broker1', async () => {
     const jolokiaResp = {
       request: {},
-      value: ['org.apache.activemq.artemis:broker="amq-broker"'],
+      value: ['org.apache.activemq.artemis:broker="amq-broker1"'],
       timestamp: 1714703745,
       status: 200,
     };
@@ -518,5 +534,171 @@ describe('test endpoint access with permission denied', () => {
 
     expect(resp.ok).not.toBeTruthy();
     expect(resp.status).toEqual(401);
+  });
+});
+
+describe('test endpoint access with permission denied without roles', () => {
+  let jwtToken: string;
+
+  beforeAll(async () => {
+    const result = await doServerLogin('usernoroles', 'password1');
+    jwtToken = result.authToken;
+    expect(result.accessToken).toBeNull();
+    expect(jwtToken.length).toBeGreaterThan(0);
+  });
+
+  it('test get brokers get denied on all brokers', async () => {
+    const jolokiaResp1 = {
+      request: {},
+      value: ['org.apache.activemq.artemis:broker="amq-broker1"'],
+      timestamp: 1714703745,
+      status: 200,
+    };
+    const jolokiaResp2 = {
+      request: {},
+      value: ['org.apache.activemq.artemis:broker="amq-broker2"'],
+      timestamp: 1714703745,
+      status: 200,
+    };
+    const jolokiaResp3 = {
+      request: {},
+      value: ['org.apache.activemq.artemis:broker="amq-broker3"'],
+      timestamp: 1714703745,
+      status: 200,
+    };
+    const jolokiaResp4 = {
+      request: {},
+      value: ['org.apache.activemq.artemis:broker="amq-broker4"'],
+      timestamp: 1714703745,
+      status: 200,
+    };
+
+    //use persist when this path will get called more than once.
+    mockBroker1
+      .persist() //use persist when this path will get called more than once.
+      .get(apiUrlPrefix + '/search/org.apache.activemq.artemis:broker=*')
+      .reply(200, JSON.stringify(jolokiaResp1));
+
+    mockBroker2
+      .persist() //use persist when this path will get called more than once.
+      .get(apiUrlPrefix + '/search/org.apache.activemq.artemis:broker=*')
+      .reply(200, JSON.stringify(jolokiaResp2));
+
+    mockBroker3
+      .persist() //use persist when this path will get called more than once.
+      .get(apiUrlPrefix + '/search/org.apache.activemq.artemis:broker=*')
+      .reply(200, JSON.stringify(jolokiaResp3));
+
+    mockBroker4
+      .persist() //use persist when this path will get called more than once.
+      .get(
+        strictedApiUrlPrefix + '/search/org.apache.activemq.artemis:broker=*',
+      )
+      .reply(200, JSON.stringify(jolokiaResp4));
+
+    const resp = await doGet(
+      '/brokers' + '?targetEndpoint=broker1',
+      null,
+      jwtToken,
+    );
+
+    expect(resp.ok).not.toBeTruthy();
+    expect(resp.status).toEqual(401);
+
+    const resp1 = await doGet(
+      '/brokers' + '?targetEndpoint=broker2',
+      null,
+      jwtToken,
+    );
+
+    expect(resp1.ok).not.toBeTruthy();
+    expect(resp1.status).toEqual(401);
+
+    const resp2 = await doGet(
+      '/brokers' + '?targetEndpoint=broker3',
+      null,
+      jwtToken,
+    );
+
+    expect(resp2.ok).not.toBeTruthy();
+    expect(resp2.status).toEqual(401);
+  });
+});
+
+describe('test endpoint access with super user', () => {
+  let jwtToken: string;
+
+  beforeAll(async () => {
+    const result = await doServerLogin('admin', 'admin');
+    jwtToken = result.authToken;
+    expect(result.accessToken).toBeNull();
+    expect(jwtToken.length).toBeGreaterThan(0);
+  });
+
+  it('test super user has access on all brokers', async () => {
+    const jolokiaResp = {
+      request: {},
+      value: ['org.apache.activemq.artemis:broker="amq-broker"'],
+      timestamp: 1714703745,
+      status: 200,
+    };
+
+    //use persist when this path will get called more than once.
+    mockBroker1
+      .persist() //use persist when this path will get called more than once.
+      .get(apiUrlPrefix + '/search/org.apache.activemq.artemis:broker=*')
+      .reply(200, JSON.stringify(jolokiaResp));
+
+    const resp1 = await doGet(
+      '/brokers' + '?targetEndpoint=broker1',
+      null,
+      jwtToken,
+    );
+
+    expect(resp1.ok).toBeTruthy();
+    expect(resp1.status).toEqual(200);
+
+    await resp1.json().then((value) => {
+      expect(value).toEqual([{ name: 'amq-broker1' }]);
+    });
+
+    const resp2 = await doGet(
+      '/brokers' + '?targetEndpoint=broker2',
+      null,
+      jwtToken,
+    );
+
+    expect(resp2.ok).toBeTruthy();
+    expect(resp2.status).toEqual(200);
+
+    await resp2.json().then((value) => {
+      expect(value).toEqual([{ name: 'amq-broker2' }]);
+    });
+
+    const resp3 = await doGet(
+      '/brokers' + '?targetEndpoint=broker3',
+      null,
+      jwtToken,
+    );
+
+    expect(resp3.ok).toBeTruthy();
+    expect(resp3.status).toEqual(200);
+
+    await resp3.json().then((value) => {
+      expect(value).toEqual([{ name: 'amq-broker3' }]);
+    });
+
+    const resp4 = await doGet(
+      '/brokers' + '?targetEndpoint=broker4',
+      null,
+      jwtToken,
+    );
+
+    expect(resp4.ok).toBeTruthy();
+    expect(resp4.status).toEqual(200);
+
+    await resp4.json().then((value) => {
+      expect(value).toEqual([{ name: 'amq-broker4' }]);
+    });
   });
 });

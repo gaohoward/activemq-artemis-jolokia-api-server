@@ -94,6 +94,17 @@ Please refer to [api.md](api.md) for details of the log api.
 Currently the security manager uses local file to store user's info. The default users file name is `.users.json`
 The users file name can be configured using `USERS_FILE_URL` env var. See `.test.users.json` for sample values.
 
+---
+**NOTE**
+
+The api server can be configured with a `super user` that has full access to the 
+api server's APIs without authorization. The default super user name is `admin` and
+password is `admin`. You can use env var `API_SERVER_ADMIN_USER` and `API_SERVER_ADMIN_PASSWORD`
+to override the user name and password respectively of the `super user`.
+
+Due to its all powerfulness, it is adviced to configure a `super user` to replace the default one.
+---
+
 ### Authorization
 
 The server uses RBAC (Role Based Access Control) authorization. User/role mappings are stored in a local file. By default the file

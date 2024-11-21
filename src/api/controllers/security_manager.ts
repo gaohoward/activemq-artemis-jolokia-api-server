@@ -35,6 +35,7 @@ export interface SecurityManager {
 }
 
 interface SecurityStore {
+  isSuperUser(user: User): boolean;
   getAllUsers(): Map<string, User>;
   getAllRoles(): Map<string, Role>;
   start(): Promise<void>;
@@ -56,6 +57,15 @@ class LocalSecurityStore implements SecurityStore {
   // user -> roles
   userRolesTable = new Map<string, Set<string>>();
 
+  superUser: User;
+
+  isSuperUser(user: User): boolean {
+    if (this.superUser) {
+      return this.superUser.id === user.id;
+    }
+    return false;
+  }
+
   getAllUsers(): Map<string, User> {
     return this.usersMap;
   }
@@ -68,6 +78,18 @@ class LocalSecurityStore implements SecurityStore {
     this.usersMap = LocalSecurityStore.loadUsers(
       process.env.USERS_FILE_URL ? process.env.USERS_FILE_URL : '.users.json',
     );
+    if (
+      process.env.API_SERVER_ADMIN_USER &&
+      process.env.API_SERVER_ADMIN_PASSWORD
+    ) {
+      this.superUser = {
+        id: process.env.API_SERVER_ADMIN_USER,
+        hash: process.env.API_SERVER_ADMIN_PASSWORD,
+      };
+      this.usersMap.set(this.superUser.id, this.superUser);
+    } else {
+      this.superUser = undefined;
+    }
     this.rolesMap = LocalSecurityStore.loadRoles(
       process.env.USERS_FILE_URL ? process.env.ROLES_FILE_URL : '.roles.json',
     );
@@ -187,6 +209,7 @@ class LocalSecurityStore implements SecurityStore {
 
   authenticate = (userName: string, password: string): User | null => {
     let authUser = null;
+
     if (this.usersMap.has(userName)) {
       const user = this.usersMap.get(userName);
       if (bcrypt.compareSync(password, user.hash)) {
@@ -237,17 +260,19 @@ class JwtSecurityManager implements SecurityManager {
     type: PermissionType,
     data?: any,
   ): Promise<void> => {
-    switch (type) {
-      case PermissionType.Endpoints: {
-        this.securityStore.checkPermissionOnEndpoint(user, data);
-        break;
+    if (!this.securityStore.isSuperUser(user)) {
+      switch (type) {
+        case PermissionType.Endpoints: {
+          this.securityStore.checkPermissionOnEndpoint(user, data);
+          break;
+        }
+        case PermissionType.Admin: {
+          this.securityStore.checkPermissionOnAdmin(user);
+          break;
+        }
+        default:
+          throw Error('invalid type ' + type);
       }
-      case PermissionType.Admin: {
-        this.securityStore.checkPermissionOnAdmin(user);
-        break;
-      }
-      default:
-        throw Error('invalid type ' + type);
     }
   };
 
